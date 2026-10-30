@@ -52,17 +52,13 @@ Ngôn ngữ hiển thị: **Tiếng Việt** | Định dạng thời gian hiển
 > Chuẩn bị sẵn bộ Token đồng bộ với Tailwind CSS để khi có bản thiết kế từ Google Stitch có thể tích hợp ngay lập tức.
 
 ### 2.1. Tông màu chủ đạo (Color Palette)
-Lấy cảm hứng từ sự an toàn, tin cậy và hiện đại trong giao thông thông minh:
-- **Primary (Xanh dương hiện đại - Tín nhiệm & Công nghệ)**:
-  - `primary-50`: `#eff6ff`
-  - `primary-100`: `#dbeafe`
-  - `primary-500`: `#2563eb` (Màu thương hiệu chính)
-  - `primary-600`: `#1d4ed8`
-  - `primary-700`: `#1e40af`
-- **Secondary (Xanh ngọc / Emerald - Tươi sáng, sẻ chia chuyến đi)**:
-  - `secondary-500`: `#10b981`
-  - `secondary-600`: `#059669`
-- **Accent (Cam hổ phách - Điểm nhấn cho gói hàng / Chú ý)**:
+> Nguồn chuẩn: [UI_UX_SPEC.md](./UI_UX_SPEC.md). Khi có mâu thuẫn, UI_UX_SPEC.md được ưu tiên.
+
+- **Primary (Emerald - Màu thương hiệu)** — dùng class Tailwind `emerald-*`:
+  - `emerald-50`: `#ecfdf5` (nền nhạt)
+  - `emerald-600`: `#059669` (màu chính: nút, liên kết, logo)
+  - `emerald-700`: `#047857` (hover)
+- **Accent (Cam hổ phách - Cảnh báo / Gói hàng)**:
   - `accent-500`: `#f59e0b`
   - `accent-600`: `#d97706`
 - **Neutral (Xám Slate cao cấp)**:
@@ -72,10 +68,10 @@ Lấy cảm hứng từ sự an toàn, tin cậy và hiện đại trong giao th
   - Chữ chính: `#0f172a` (Slate 900)
   - Chữ phụ: `#64748b` (Slate 500)
 - **Trạng thái (Status)**:
-  - Thành công / Đã nhận / Hoàn thành: `#16a34a` (Green 600)
-  - Chờ duyệt / Đang xử lý: `#eab308` (Yellow 500)
-  - Thất bại / Đã hủy / Vi phạm: `#dc2626` (Red 600)
-  - Đóng chuyến: `#475569` (Slate 600)
+  - Success (ACCEPTED, COMPLETED, ACTIVE): `emerald-500` / `green-600`
+  - Warning (PENDING, PROCESSING, LOCKED_TEMP): `amber-500` / `orange-500`
+  - Danger (REJECTED, CANCELLED, FAILED, LOCKED_PERM): `rose-500` / `red-600`
+  - Neutral (CLOSED, EXPIRED, INACTIVE): `slate-400`
 
 ### 2.2. Font chữ & Typography
 - **Font gia đình**: `Inter` hoặc `Be Vietnam Pro` (tối ưu tiếng Việt không bị lỗi dấu, hiện đại, sắc nét).
@@ -89,7 +85,7 @@ Lấy cảm hứng từ sự an toàn, tin cậy và hiện đại trong giao th
 ### 2.3. Quy chuẩn Thành phần Giao diện (UI Components)
 - **Bo góc (Border Radius)**: Chuẩn `rounded-xl` (12px) cho card và modal, `rounded-lg` (8px) cho input và button.
 - **Đổ bóng (Elevation)**: Nhẹ nhàng `shadow-sm` cho card thường, `shadow-lg` cho modal/dropdown.
-- **Bản đồ Leaflet**: Sử dụng CartoDB Positron hoặc OSM tile layer có độ tương phản chuẩn, polyline tuyến màu `primary-600` nét 5px, marker điểm đón màu xanh lá, điểm trả màu đỏ.
+- **Bản đồ Leaflet**: Sử dụng CartoDB Positron hoặc OSM tile layer có độ tương phản chuẩn, polyline tuyến màu `emerald-600` nét 5px, marker điểm đón màu xanh lá, điểm trả màu đỏ.
 - **Thẻ trạng thái (Status Badges)**:
   - `OPEN`: Nền xanh lá nhạt, chữ xanh đậm.
   - `CLOSED`: Nền xám nhạt, chữ xám đậm.
