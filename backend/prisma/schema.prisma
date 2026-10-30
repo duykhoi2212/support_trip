@@ -1,0 +1,324 @@
+// Prisma Schema for Ride and Package Sharing Platform with AI Coordination
+// Fully compatible with PostgreSQL 16 and dbdiagram_cac_bang_chinh.dbml
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
+
+enum user_role {
+  USER
+  DRIVER
+  ADMIN
+}
+
+enum account_status {
+  ACTIVE
+  LOCKED_TEMP
+  LOCKED_PERM
+}
+
+enum vehicle_type {
+  MOTORBIKE
+  CAR
+  VAN
+  TRUCK
+}
+
+enum vehicle_status {
+  ACTIVE
+  INACTIVE
+}
+
+enum trip_status {
+  OPEN
+  CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum request_type {
+  RIDE
+  PACKAGE
+}
+
+enum request_status {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  FAILED
+  COMPLETED
+}
+
+enum ride_progress {
+  NOT_PICKED_UP
+  PICKED_UP
+  DROPPED_OFF
+}
+
+enum package_status {
+  AWAITING_PICKUP
+  PICKED_UP
+  DELIVERED
+}
+
+enum fail_reason_code {
+  WRONG_INFO
+  UNREACHABLE
+  ABSENT
+  OTHER
+}
+
+enum actor_type {
+  USER
+  DRIVER
+  ADMIN
+  SYSTEM
+}
+
+enum lock_type {
+  TEMPORARY
+  PERMANENT
+}
+
+enum violation_status {
+  ACTIVE
+  REVOKED
+}
+
+enum incident_status {
+  NOT_RECEIVED
+  RECEIVED
+  PROCESSING
+  RESOLVED
+}
+
+// -------------------------------------------------------------
+// MODELS (TABLES)
+// -------------------------------------------------------------
+
+model User {
+  id            BigInt         @id @default(autoincrement())
+  phone         String         @unique @db.VarChar(15)
+  email         String         @unique @db.VarChar(150)
+  password_hash String         @db.VarChar(255)
+  full_name     String         @db.VarChar(100)
+  avatar_url    String?        @db.VarChar(255)
+  role          user_role
+  status        account_status @default(ACTIVE)
+  locked_until  DateTime?      @db.Timestamp(6)
+  created_at    DateTime       @default(now()) @db.Timestamp(6)
+
+  // Relations
+  vehicles           Vehicle[]
+  trips              Trip[]
+  transport_requests TransportRequest[]
+  violations         Violation[]        @relation("UserViolations")
+  violations_revoked Violation[]        @relation("RevokedByUser")
+  reported_incidents IncidentReport[]   @relation("ReporterUser")
+  handled_incidents  IncidentReport[]   @relation("HandlerUser")
+  notifications      Notification[]
+  audit_logs         AuditLog[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id             BigInt         @id @default(autoincrement())
+  driver_id      BigInt
+  type           vehicle_type
+  plate_number   String         @db.VarChar(20)
+  brand_model    String?        @db.VarChar(100)
+  color          String?        @db.VarChar(30)
+  seat_count     Int
+  cargo_area_m2  Float          @default(0)
+  cargo_max_kg   Float          @default(0)
+  photo_url      String         @db.VarChar(255)
+  status         vehicle_status @default(ACTIVE)
+  created_at     DateTime       @default(now()) @db.Timestamp(6)
+
+  // Relations
+  driver User   @relation(fields: [driver_id], references: [id])
+  trips  Trip[]
+
+  @@unique([type, plate_number])
+  @@map("vehicles")
+}
+
+model Trip {
+  id                      BigInt      @id @default(autoincrement())
+  code                    String      @unique @db.VarChar(20)
+  driver_id               BigInt
+  vehicle_id              BigInt
+  origin_name             String      @db.VarChar(255)
+  origin_lat              Float
+  origin_lng              Float
+  dest_name               String      @db.VarChar(255)
+  dest_lat                Float
+  dest_lng                Float
+  departure_time          DateTime    @db.Timestamp(6)
+  eta                     DateTime    @db.Timestamp(6)
+  distance_km             Float?
+  duration_min            Int?
+  route_polyline          String?     @db.Text
+  seats_total             Int
+  cargo_area_total_m2     Float
+  cargo_weight_total_kg   Float
+  seats_reserved          Int         @default(0)
+  cargo_area_reserved_m2  Float       @default(0)
+  cargo_weight_reserved_kg Float      @default(0)
+  status                  trip_status @default(OPEN)
+  cancel_reason           String?     @db.VarChar(255)
+  started_at              DateTime?   @db.Timestamp(6)
+  completed_at            DateTime?   @db.Timestamp(6)
+  created_at              DateTime    @default(now()) @db.Timestamp(6)
+
+  // Relations
+  driver             User               @relation(fields: [driver_id], references: [id])
+  vehicle            Vehicle            @relation(fields: [vehicle_id], references: [id])
+  transport_requests TransportRequest[]
+  incident_reports   IncidentReport[]
+
+  @@index([vehicle_id, departure_time, eta])
+  @@index([status, departure_time])
+  @@map("trips")
+}
+
+model TransportRequest {
+  id                        BigInt            @id @default(autoincrement())
+  code                      String            @unique @db.VarChar(20)
+  trip_id                   BigInt
+  user_id                   BigInt
+  type                      request_type
+  pickup_name               String            @db.VarChar(255)
+  pickup_lat                Float
+  pickup_lng                Float
+  dropoff_name              String            @db.VarChar(255)
+  dropoff_lat               Float
+  dropoff_lng               Float
+  passenger_count           Int?
+  ride_progress             ride_progress?
+  status                    request_status    @default(PENDING)
+  reject_reason             String?           @db.VarChar(255)
+  cancel_reason             String?           @db.VarChar(255)
+  cancelled_by              actor_type?
+  fail_reason_code          fail_reason_code?
+  counts_toward_cancel_rate Boolean           @default(false)
+  decided_at                DateTime?         @db.Timestamp(6)
+  created_at                DateTime          @default(now()) @db.Timestamp(6)
+
+  // Relations
+  trip             Trip             @relation(fields: [trip_id], references: [id])
+  user             User             @relation(fields: [user_id], references: [id])
+  package_items    PackageItem[]
+  incident_reports IncidentReport[]
+
+  @@index([trip_id, status])
+  @@index([user_id, status])
+  @@map("transport_requests")
+}
+
+model PackageItem {
+  id              BigInt         @id @default(autoincrement())
+  request_id      BigInt
+  description     String         @db.VarChar(255)
+  category        String?        @db.VarChar(50)
+  photo_url       String         @db.VarChar(255)
+  weight_kg       Float
+  area_m2         Float
+  recipient_name  String         @db.VarChar(100)
+  recipient_phone String         @db.VarChar(15)
+  status          package_status @default(AWAITING_PICKUP)
+
+  // Relations
+  transport_request TransportRequest @relation(fields: [request_id], references: [id])
+
+  @@map("package_items")
+}
+
+model Violation {
+  id              BigInt           @id @default(autoincrement())
+  user_id         BigInt
+  week_start      DateTime         @db.Date
+  confirmed_count Int
+  cancelled_count Int
+  cancel_rate     Float
+  lock_type       lock_type
+  lock_until      DateTime?        @db.Timestamp(6)
+  status          violation_status @default(ACTIVE)
+  revoked_at      DateTime?        @db.Timestamp(6)
+  revoked_by      BigInt?
+  created_at      DateTime         @default(now()) @db.Timestamp(6)
+
+  // Relations
+  user    User  @relation("UserViolations", fields: [user_id], references: [id])
+  revoker User? @relation("RevokedByUser", fields: [revoked_by], references: [id])
+
+  @@unique([user_id, week_start])
+  @@map("violations")
+}
+
+model IncidentReport {
+  id          BigInt          @id @default(autoincrement())
+  reporter_id BigInt
+  trip_id     BigInt?
+  request_id  BigInt?
+  title       String          @db.VarChar(150)
+  description String          @db.Text
+  status      incident_status @default(NOT_RECEIVED)
+  handled_by  BigInt?
+  result_note String?         @db.Text
+  created_at  DateTime        @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?       @updatedAt @db.Timestamp(6)
+
+  // Relations
+  reporter          User              @relation("ReporterUser", fields: [reporter_id], references: [id])
+  handler           User?             @relation("HandlerUser", fields: [handled_by], references: [id])
+  trip              Trip?             @relation(fields: [trip_id], references: [id])
+  transport_request TransportRequest? @relation(fields: [request_id], references: [id])
+
+  @@map("incident_reports")
+}
+
+model Notification {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt
+  type       String   @db.VarChar(50)
+  content    String   @db.VarChar(500)
+  ref_type   String?  @db.VarChar(30)
+  ref_id     BigInt?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          BigInt     @id @default(autoincrement())
+  actor_id    BigInt?
+  actor_type  actor_type
+  action      String     @db.VarChar(50)
+  target_type String?    @db.VarChar(30)
+  target_id   BigInt?
+  reason      String?    @db.VarChar(500)
+  created_at  DateTime   @default(now()) @db.Timestamp(6)
+
+  // Relations
+  actor User? @relation(fields: [actor_id], references: [id])
+
+  @@map("audit_logs")
+}

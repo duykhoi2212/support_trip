@@ -1,0 +1,237 @@
+// Nen tang ket noi di nho va gui do theo chuyen xe - Cac bang chinh (PostgreSQL)
+// Dan vao dbdiagram.io
+
+Enum user_role {
+  USER
+  DRIVER
+  ADMIN
+}
+Enum account_status {
+  ACTIVE
+  LOCKED_TEMP
+  LOCKED_PERM
+}
+Enum vehicle_type {
+  MOTORBIKE
+  CAR
+  VAN
+  TRUCK
+}
+Enum vehicle_status {
+  ACTIVE
+  INACTIVE
+}
+Enum trip_status {
+  OPEN
+  CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+Enum request_type {
+  RIDE
+  PACKAGE
+}
+Enum request_status {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  FAILED
+  COMPLETED
+}
+Enum ride_progress {
+  NOT_PICKED_UP
+  PICKED_UP
+  DROPPED_OFF
+}
+Enum package_status {
+  AWAITING_PICKUP
+  PICKED_UP
+  DELIVERED
+}
+Enum fail_reason_code {
+  WRONG_INFO
+  UNREACHABLE
+  ABSENT
+  OTHER
+}
+Enum actor_type {
+  USER
+  DRIVER
+  ADMIN
+  SYSTEM
+}
+Enum lock_type {
+  TEMPORARY
+  PERMANENT
+}
+Enum violation_status {
+  ACTIVE
+  REVOKED
+}
+Enum incident_status {
+  NOT_RECEIVED
+  RECEIVED
+  PROCESSING
+  RESOLVED
+}
+
+Table users {
+  id bigint [pk, increment]
+  phone varchar(15) [not null, unique]
+  email varchar(150) [not null, unique]
+  password_hash varchar(255) [not null]
+  full_name varchar(100) [not null]
+  avatar_url varchar(255)
+  role user_role [not null]
+  status account_status [not null, default: 'ACTIVE']
+  locked_until timestamp [note: 'Chi co gia tri khi LOCKED_TEMP']
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table vehicles {
+  id bigint [pk, increment]
+  driver_id bigint [not null, ref: > users.id]
+  type vehicle_type [not null]
+  plate_number varchar(20) [not null]
+  brand_model varchar(100)
+  color varchar(30)
+  seat_count int [not null]
+  cargo_area_m2 float [not null, default: 0]
+  cargo_max_kg float [not null, default: 0]
+  photo_url varchar(255) [not null]
+  status vehicle_status [not null, default: 'ACTIVE']
+  created_at timestamp [not null, default: `now()`]
+  indexes {
+    (type, plate_number) [unique]
+  }
+}
+
+Table trips {
+  id bigint [pk, increment]
+  code varchar(20) [not null, unique]
+  driver_id bigint [not null, ref: > users.id]
+  vehicle_id bigint [not null, ref: > vehicles.id]
+  origin_name varchar(255) [not null]
+  origin_lat float [not null]
+  origin_lng float [not null]
+  dest_name varchar(255) [not null]
+  dest_lat float [not null]
+  dest_lng float [not null]
+  departure_time timestamp [not null]
+  eta timestamp [not null]
+  distance_km float
+  duration_min int
+  seats_total int [not null, note: 'Snapshot suc chua luc tao chuyen']
+  cargo_area_total_m2 float [not null]
+  cargo_weight_total_kg float [not null]
+  seats_reserved int [not null, default: 0]
+  cargo_area_reserved_m2 float [not null, default: 0]
+  cargo_weight_reserved_kg float [not null, default: 0]
+  status trip_status [not null, default: 'OPEN']
+  cancel_reason varchar(255)
+  started_at timestamp
+  completed_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  indexes {
+    (vehicle_id, departure_time, eta)
+    (status, departure_time)
+  }
+}
+
+Table transport_requests {
+  id bigint [pk, increment]
+  code varchar(20) [not null, unique]
+  trip_id bigint [not null, ref: > trips.id]
+  user_id bigint [not null, ref: > users.id]
+  type request_type [not null, note: 'Di nho hoac gui do, khong gop chung']
+  pickup_name varchar(255) [not null]
+  pickup_lat float [not null]
+  pickup_lng float [not null]
+  dropoff_name varchar(255) [not null]
+  dropoff_lat float [not null]
+  dropoff_lng float [not null]
+  passenger_count int [note: 'Chi dung khi type = RIDE']
+  ride_progress ride_progress [note: 'Chi dung khi type = RIDE']
+  status request_status [not null, default: 'PENDING']
+  reject_reason varchar(255)
+  cancel_reason varchar(255)
+  cancelled_by actor_type
+  fail_reason_code fail_reason_code
+  counts_toward_cancel_rate boolean [not null, default: false]
+  decided_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  indexes {
+    (trip_id, status)
+    (user_id, status)
+  }
+}
+
+Table package_items {
+  id bigint [pk, increment]
+  request_id bigint [not null, ref: > transport_requests.id]
+  description varchar(255) [not null]
+  category varchar(50)
+  photo_url varchar(255) [not null]
+  weight_kg float [not null]
+  area_m2 float [not null]
+  recipient_name varchar(100) [not null]
+  recipient_phone varchar(15) [not null]
+  status package_status [not null, default: 'AWAITING_PICKUP']
+}
+
+Table violations {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  week_start date [not null]
+  confirmed_count int [not null]
+  cancelled_count int [not null]
+  cancel_rate float [not null]
+  lock_type lock_type [not null]
+  lock_until timestamp
+  status violation_status [not null, default: 'ACTIVE']
+  revoked_at timestamp
+  revoked_by bigint [ref: > users.id]
+  created_at timestamp [not null, default: `now()`]
+  indexes {
+    (user_id, week_start) [unique]
+  }
+}
+
+Table incident_reports {
+  id bigint [pk, increment]
+  reporter_id bigint [not null, ref: > users.id]
+  trip_id bigint [ref: > trips.id]
+  request_id bigint [ref: > transport_requests.id]
+  title varchar(150) [not null]
+  description text [not null]
+  status incident_status [not null, default: 'NOT_RECEIVED']
+  handled_by bigint [ref: > users.id]
+  result_note text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp
+}
+
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  type varchar(50) [not null]
+  content varchar(500) [not null]
+  ref_type varchar(30)
+  ref_id bigint
+  is_read boolean [not null, default: false]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table audit_logs {
+  id bigint [pk, increment]
+  actor_id bigint [ref: > users.id]
+  actor_type actor_type [not null]
+  action varchar(50) [not null]
+  target_type varchar(30)
+  target_id bigint
+  reason varchar(500)
+  created_at timestamp [not null, default: `now()`]
+}
