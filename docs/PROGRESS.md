@@ -13,8 +13,8 @@ Trạng thái ký hiệu:
 | Giai đoạn | Mô tả nội dung chính | Trạng thái | Ngày dự kiến |
 | :---: | :--- | :---: | :---: |
 | **Giai đoạn 1** | Khởi tạo monorepo (FE + BE), Prisma schema từ DBML, migration, seed, unit test core | 🟢 **Đã hoàn thành** | Ngày 1 |
-| **Giai đoạn 2** | Auth + Phân quyền (requireRole) + Hồ sơ cá nhân (CM-01..03) | 🟡 Kế tiếp | Ngày 2 |
-| **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🔴 Chưa làm | Ngày 3 |
+| **Giai đoạn 2** | Auth + Phân quyền (requireRole) + Hồ sơ cá nhân + Quên mật khẩu (CM-01..03) | 🟢 **Đã hoàn thành** | Ngày 2 |
+| **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟡 Kế tiếp | Ngày 3 |
 | **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🔴 Chưa làm | Ngày 4 |
 | **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🔴 Chưa làm | Ngày 5 |
 | **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🔴 Chưa làm | Ngày 6 |
@@ -27,10 +27,11 @@ Trạng thái ký hiệu:
 ### 2.1. Chức năng Dùng chung (Common - CM)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| `CM-01` | Đăng ký tài khoản (User / Driver) | 🔴 Chưa làm | `[ ]` | `[ ]` | Role cố định, không đổi SĐT sau đăng ký |
-| `CM-02` | Đăng nhập hệ thống (JWT) | 🔴 Chưa làm | `[ ]` | `[ ]` | Kiểm tra trạng thái khóa (LOCKED_TEMP, LOCKED_PERM) |
-| `CM-03` | Quản lý hồ sơ cá nhân (Họ tên, email, avatar, đổi mật khẩu) | 🔴 Chưa làm | `[ ]` | `[ ]` | Upload avatar qua Multer |
-| `CM-04` | Báo cáo sự cố (User / Driver gửi báo cáo) | 🔴 Chưa làm | `[ ]` | `[ ]` | Đính kèm chuyến xe liên quan |
+| `CM-01` | Đăng ký tài khoản (User / Driver) | 🟢 Đã xong | `[x]` | `[x]` | Role cố định, không đổi SĐT sau đăng ký |
+| `CM-02` | Đăng nhập hệ thống (JWT) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra trạng thái khóa (LOCKED_TEMP, LOCKED_PERM) |
+| `CM-03` | Quản lý hồ sơ cá nhân (Họ tên, email, avatar, đổi mật khẩu) | 🟢 Đã xong | `[x]` | `[x]` | Upload avatar qua Multer |
+| `CM-EXTRA` | Quên & Đặt lại mật khẩu (Token 15p) | 🟢 Đã xong | `[x]` | `[x]` | Xác thực SĐT + Email, JWT Token an toàn |
+| `CM-04` | Báo cáo sự cố (User / Driver gửi báo cáo) | 🔴 Chưa làm | `[ ]` | `[ ]` | Đính kèm chuyến xe liên quan (Giai đoạn 6) |
 
 ### 2.2. Chức năng Tài xế (Driver - DR)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
@@ -67,6 +68,12 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-10-30 (Giai đoạn 2 - HOÀN THÀNH)**:
+  - Kết nối Neon PostgreSQL 16 live, đồng bộ 9 bảng và partial unique index.
+  - Xây dựng hoàn chỉnh module `auth-account` backend (CM-01, CM-02, CM-03, Quên mật khẩu).
+  - Tích hợp Multer upload avatar vào `backend/uploads/` (giới hạn 5MB, JPG/PNG/WEBP).
+  - Viết 10 integration test cho Auth: 25/25 test passed 100% trên Neon DB.
+  - Xây dựng Frontend UI: Login, Register (chọn vai trò USER/DRIVER), ForgotPassword (2 bước), Profile (đổi thông tin, đổi pass, upload avatar), Navbar với Role badge và AuthContext.
 - **2026-10-29 (Giai đoạn 1 - HOÀN THÀNH)**:
   - Khởi tạo kiến trúc Monorepo (`backend/`, `frontend/`, `docs/`).
   - Xây dựng `schema.prisma` chuẩn 100% từ `dbdiagram_cac_bang_chinh.dbml` kèm trường `route_polyline` đã được phê duyệt.

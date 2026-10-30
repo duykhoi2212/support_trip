@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { authRouter, meRouter } from './modules/auth-account/routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,10 @@ app.get('/api/health', (_req, res) => {
     },
   });
 });
+
+// Auth & Me Routes
+app.use('/api/auth', authRouter);
+app.use('/api/me', meRouter);
 
 // Centralized error handler
 app.use(errorHandler);
