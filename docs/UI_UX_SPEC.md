@@ -135,3 +135,4 @@
 3. **Quản lý Role:**
    - AuthContext lưu trữ `user` và `role`.
    - Thành phần `ProtectedRoute({ allowedRoles: Role[] })` tự động chuyển hướng về trang 403 hoặc `/login` nếu không đúng quyền.
+

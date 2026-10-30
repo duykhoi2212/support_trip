@@ -19,7 +19,14 @@ async function main() {
   await prisma.vehicle.deleteMany();
   await prisma.user.deleteMany();
 
-  console.log('🧹 Cleaned existing tables.');
+  // Đảm bảo Partial Unique Index luôn tồn tại
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "unique_active_user_trip_request" 
+    ON "transport_requests" ("trip_id", "user_id") 
+    WHERE "status" IN ('PENDING', 'ACCEPTED');
+  `);
+
+  console.log('🧹 Cleaned existing tables & verified partial unique index.');
 
   // 2. Create 1 Admin
   const admin = await prisma.user.create({
