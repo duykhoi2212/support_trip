@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AuthService } from '../src/modules/auth-account/service.js';
 import { prisma } from '../src/utils/prisma.js';
 import { user_role, account_status } from '@prisma/client';
+import { mailer } from '../src/adapters/mail/mailer.js';
 
 describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, Forgot Password)', () => {
   const testPhone = '0988776655';
@@ -119,28 +120,53 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
     expect(loginRes.token).toBeDefined();
   });
 
-  it('9. Quên mật khẩu: Xác nhận SĐT + Email và đặt lại mật khẩu bằng Token', async () => {
-    const forgotRes = await AuthService.forgotPassword({
-      phone: testPhone,
-      email: testEmail,
+  it('9. Quên mật khẩu: Gửi email link 1 lần, chống lộ tài khoản và vô hiệu hóa sau khi dùng', async () => {
+    let capturedMail: any = null;
+    const sendSpy = vi.spyOn(mailer, 'send').mockImplementation(async (msg) => {
+      capturedMail = msg;
     });
 
-    expect(forgotRes.reset_token).toBeDefined();
+    // 9.1: Email không tồn tại: vẫn trả về thông báo chung, không gửi mail (chống dò email)
+    const fakeRes = await AuthService.forgotPassword({ email: 'nonexistent@example.com' });
+    expect(fakeRes.message).toContain('Nếu địa chỉ email tồn tại');
+    expect(sendSpy).not.toHaveBeenCalled();
 
+    // 9.2: Email tồn tại: gửi mail chứa đường dẫn token
+    const forgotRes = await AuthService.forgotPassword({ email: testEmail });
+    expect(forgotRes.message).toContain('Nếu địa chỉ email tồn tại');
+    expect(sendSpy).toHaveBeenCalledOnce();
+    expect(capturedMail).toBeDefined();
+    expect(capturedMail.to).toBe(testEmail);
+
+    // Trích xuất token từ link trong text email
+    const match = capturedMail.text.match(/token=([^&\s]+)/);
+    expect(match).not.toBeNull();
+    const token = decodeURIComponent(match![1]);
+
+    // 9.3: Đặt lại mật khẩu thành công bằng token hợp lệ
     const resetNewPass = 'ResetPassword@789';
     const resetRes = await AuthService.resetPassword({
-      reset_token: forgotRes.reset_token,
+      token,
       new_password: resetNewPass,
     });
-
     expect(resetRes.message).toContain('thành công');
 
-    // Đăng nhập bằng mật khẩu vừa reset
+    // 9.4: Token đã dùng KHÔNG thể tái sử dụng lần thứ hai (Single-use token)
+    await expect(
+      AuthService.resetPassword({
+        token,
+        new_password: 'AnotherPassword@123',
+      })
+    ).rejects.toThrow('đã hết hạn (quá 15 phút) hoặc đã được sử dụng');
+
+    // 9.5: Đăng nhập thành công với mật khẩu mới
     const loginRes = await AuthService.login({
-      identifier: testPhone,
+      identifier: testEmail,
       password: resetNewPass,
     });
     expect(loginRes.token).toBeDefined();
+
+    sendSpy.mockRestore();
   });
 
   it('10. CM-02: Chặn đăng nhập khi tài khoản bị khóa vĩnh viễn (LOCKED_PERM)', async () => {
@@ -158,3 +184,4 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
     ).rejects.toThrow('khóa vĩnh viễn');
   });
 });
+

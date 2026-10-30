@@ -18,3 +18,4 @@ meRouter.get('/', AuthController.getMe);
 meRouter.patch('/', AuthController.updateMe);
 meRouter.patch('/password', AuthController.changePassword);
 meRouter.post('/avatar', uploadImage.single('avatar'), AuthController.updateAvatar);
+

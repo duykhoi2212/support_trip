@@ -116,7 +116,7 @@ export class AuthController {
       const result = await AuthService.forgotPassword(validatedData);
       res.status(200).json({
         success: true,
-        data: result,
+        message: result.message,
       });
     } catch (error) {
       next(error);
@@ -136,3 +136,4 @@ export class AuthController {
     }
   }
 }
+

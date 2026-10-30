@@ -51,18 +51,16 @@ export const authService = {
     return res.data.data;
   },
 
-  // Quên mật khẩu: Yêu cầu mã token
-  async forgotPassword(data: { phone: string; email: string }): Promise<{ message: string; reset_token: string }> {
-    const res = await api.post<ApiSuccessResponse<{ message: string; reset_token: string }>>(
-      '/auth/forgot-password',
-      data
-    );
-    return res.data.data;
+  // Quên mật khẩu: Gửi email link đặt lại mật khẩu
+  async forgotPassword(data: { email: string }): Promise<string> {
+    const res = await api.post<{ success: boolean; message: string }>('/auth/forgot-password', data);
+    return res.data.message;
   },
 
-  // Quên mật khẩu: Đặt lại mật khẩu
-  async resetPassword(data: { reset_token: string; new_password: string }): Promise<string> {
+  // Quên mật khẩu: Đặt lại mật khẩu mới bằng Token từ email
+  async resetPassword(data: { token: string; new_password: string }): Promise<string> {
     const res = await api.post<{ success: boolean; message: string }>('/auth/reset-password', data);
     return res.data.message;
   },
 };
+

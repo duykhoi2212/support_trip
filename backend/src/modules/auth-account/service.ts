@@ -4,6 +4,7 @@ import { account_status, user_role } from '@prisma/client';
 import { prisma } from '../../utils/prisma.js';
 import { config } from '../../config/index.js';
 import { AppError } from '../../middlewares/errorHandler.js';
+import { mailer } from '../../adapters/mail/mailer.js';
 import {
   registerSchema,
   loginSchema,
@@ -13,6 +14,29 @@ import {
   resetPasswordSchema,
 } from './schema.js';
 import { z } from 'zod';
+
+// Bộ nhớ đệm giới hạn tần suất yêu cầu quên mật khẩu (chống spam)
+// Map: email -> danh sách mốc thời gian yêu cầu [number]
+const forgotPasswordAttempts = new Map<string, number[]>();
+
+function checkForgotPasswordRateLimit(email: string): void {
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 phút
+  const maxAttempts = 3;
+
+  const attempts = (forgotPasswordAttempts.get(email) || []).filter((time) => now - time < windowMs);
+
+  if (attempts.length >= maxAttempts) {
+    throw new AppError(
+      429,
+      'TOO_MANY_REQUESTS',
+      'Bạn đã yêu cầu đặt lại mật khẩu quá nhiều lần. Vui lòng thử lại sau 15 phút.'
+    );
+  }
+
+  attempts.push(now);
+  forgotPasswordAttempts.set(email, attempts);
+}
 
 export class AuthService {
   /**
@@ -260,66 +284,100 @@ export class AuthService {
   }
 
   /**
-   * Quên mật khẩu: Xác thực SĐT + Email và sinh mã Token đặt lại
+   * Quên mật khẩu: Gửi đường dẫn đặt lại mật khẩu qua email (bảo mật, 1 lần dùng)
    */
   static async forgotPassword(input: z.infer<typeof forgotPasswordSchema>) {
-    const user = await prisma.user.findFirst({
-      where: {
-        phone: input.phone,
-        email: input.email,
-      },
+    checkForgotPasswordRateLimit(input.email);
+
+    const genericSuccessMessage =
+      'Nếu địa chỉ email tồn tại trên hệ thống, chúng tôi đã gửi đường dẫn đặt lại mật khẩu đến hòm thư của bạn. Vui lòng kiểm tra (bao gồm cả thư mục Spam).';
+
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
     });
 
+    // Không báo lỗi khi không tìm thấy email để chống kẻ xấu dò quét tài khoản
     if (!user) {
-      throw new AppError(
-        404,
-        'USER_NOT_FOUND',
-        'Không tìm thấy tài khoản khớp với số điện thoại và email đã cung cấp.'
-      );
+      return { message: genericSuccessMessage };
     }
 
-    // Tạo JWT token đặt lại mật khẩu có thời hạn 15 phút
-    const resetToken = jwt.sign(
+    // Token được ký bằng JWT_SECRET + password_hash hiện tại.
+    // Khi mật khẩu thay đổi thành công, password_hash thay đổi -> token tự động vô hiệu hóa vĩnh viễn (chỉ dùng 1 lần)
+    const secretKey = `${config.JWT_SECRET}_${user.password_hash}`;
+    const token = jwt.sign(
       { id: user.id.toString(), purpose: 'RESET_PASSWORD' },
-      config.JWT_SECRET,
+      secretKey,
       { expiresIn: '15m' }
     );
 
-    return {
-      message: 'Mã xác nhận đặt lại mật khẩu hợp lệ (hiệu lực trong 15 phút).',
-      reset_token: resetToken,
-    };
+    const resetLink = `${config.FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`;
+
+    await mailer.send({
+      to: user.email,
+      subject: '[DiNho & GuiDo AI] Yêu cầu đặt lại mật khẩu',
+      text: `Xin chào ${user.full_name},\n\nBạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu cho tài khoản ${user.email}.\n\nVui lòng truy cập đường dẫn sau để tạo mật khẩu mới (có hiệu lực trong 15 phút và chỉ sử dụng 1 lần):\n${resetLink}\n\nNếu bạn không yêu cầu hành động này, vui lòng bỏ qua email và tài khoản của bạn vẫn được an toàn.\n\nTrân trọng,\nĐội ngũ hỗ trợ DiNho & GuiDo AI`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
+          <h2 style="color: #059669; margin-top: 0;">Yêu cầu đặt lại mật khẩu</h2>
+          <p>Xin chào <strong>${user.full_name}</strong>,</p>
+          <p>Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email <strong>${user.email}</strong>.</p>
+          <p>Vui lòng nhấn vào nút bên dưới để tiến hành đặt lại mật khẩu mới:</p>
+          <div style="margin: 25px 0;">
+            <a href="${resetLink}" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Đặt lại mật khẩu</a>
+          </div>
+          <p style="font-size: 13px; color: #64748b;">
+            Đường dẫn này chỉ có hiệu lực trong <strong>15 phút</strong> và chỉ sử dụng được <strong>1 lần duy nhất</strong>.<br/>
+            Nếu không thể nhấn vào nút trên, bạn có thể sao chép liên kết này vào trình duyệt:<br/>
+            <a href="${resetLink}" style="color: #059669; word-break: break-all;">${resetLink}</a>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 0;">Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Tài khoản của bạn vẫn được bảo mật an toàn.</p>
+        </div>
+      `,
+    });
+
+    return { message: genericSuccessMessage };
   }
 
   /**
-   * Đặt lại mật khẩu mới bằng Token
+   * Đặt lại mật khẩu mới bằng Token bảo mật 1 lần
    */
   static async resetPassword(input: z.infer<typeof resetPasswordSchema>) {
+    // 1. Giải mã token thô để lấy userId
+    const decodedRaw = jwt.decode(input.token) as { id?: string; purpose?: string } | null;
+    if (!decodedRaw || !decodedRaw.id || decodedRaw.purpose !== 'RESET_PASSWORD') {
+      throw new AppError(400, 'INVALID_RESET_TOKEN', 'Đường dẫn đặt lại mật khẩu không hợp lệ.');
+    }
+
+    // 2. Tìm user trong CSDL
+    const user = await prisma.user.findUnique({
+      where: { id: BigInt(decodedRaw.id) },
+    });
+
+    if (!user) {
+      throw new AppError(400, 'INVALID_RESET_TOKEN', 'Tài khoản không tồn tại hoặc đã bị xóa.');
+    }
+
+    // 3. Xác minh chữ ký với Secret Key gắn chặt với password_hash hiện tại
+    const secretKey = `${config.JWT_SECRET}_${user.password_hash}`;
     try {
-      const decoded = jwt.verify(input.reset_token, config.JWT_SECRET) as {
-        id: string;
-        purpose: string;
-      };
-
-      if (decoded.purpose !== 'RESET_PASSWORD') {
-        throw new AppError(400, 'INVALID_RESET_TOKEN', 'Mã xác nhận không hợp lệ.');
-      }
-
-      const newPasswordHash = await bcrypt.hash(input.new_password, 10);
-
-      await prisma.user.update({
-        where: { id: BigInt(decoded.id) },
-        data: { password_hash: newPasswordHash },
-      });
-
-      return { message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới.' };
-    } catch (err: any) {
-      if (err instanceof AppError) throw err;
+      jwt.verify(input.token, secretKey);
+    } catch {
       throw new AppError(
         400,
         'EXPIRED_RESET_TOKEN',
-        'Mã đặt lại mật khẩu đã hết hạn hoặc không hợp lệ. Vui lòng thử lại.'
+        'Đường dẫn đặt lại mật khẩu đã hết hạn (quá 15 phút) hoặc đã được sử dụng trước đó. Vui lòng gửi lại yêu cầu mới.'
       );
     }
+
+    // 4. Băm mật khẩu mới và lưu vào CSDL
+    const newPasswordHash = await bcrypt.hash(input.new_password, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash: newPasswordHash },
+    });
+
+    return { message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bằng mật khẩu mới.' };
   }
 }

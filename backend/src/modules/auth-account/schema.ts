@@ -52,18 +52,17 @@ export const changePasswordSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  phone: z
-    .string({ required_error: 'Vui lòng nhập số điện thoại' })
-    .regex(phoneRegex, 'Số điện thoại không đúng định dạng'),
   email: z
     .string({ required_error: 'Vui lòng nhập email' })
     .email('Định dạng email không hợp lệ'),
 });
 
 export const resetPasswordSchema = z.object({
-  reset_token: z
-    .string({ required_error: 'Mã xác thực đặt lại mật khẩu không được để trống' }),
+  token: z
+    .string({ required_error: 'Link đặt lại mật khẩu không hợp lệ' })
+    .min(1, 'Link đặt lại mật khẩu không hợp lệ'),
   new_password: z
     .string({ required_error: 'Vui lòng nhập mật khẩu mới' })
     .min(8, 'Mật khẩu mới phải có tối thiểu 8 ký tự'),
 });
+

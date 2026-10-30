@@ -32,3 +32,4 @@ export interface ApiErrorResponse {
     details?: any;
   };
 }
+
