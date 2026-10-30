@@ -4,6 +4,12 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Chốt an toàn: seed xóa toàn bộ dữ liệu nên tuyệt đối không chạy ở production
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ Từ chối chạy seed khi NODE_ENV=production (seed sẽ xóa toàn bộ dữ liệu).');
+    process.exit(1);
+  }
+
   console.log('🌱 Starting database seed...');
 
   const passwordHash = await bcrypt.hash('Password@123', 10);
