@@ -7,6 +7,7 @@ export const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [navImgError, setNavImgError] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -114,11 +115,12 @@ export const Navbar = () => {
                   className="flex items-center space-x-3 p-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left"
                 >
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm overflow-hidden border border-emerald-200">
-                    {user.avatar_url ? (
+                    {user.avatar_url && !navImgError ? (
                       <img
                         src={user.avatar_url}
                         alt={user.full_name}
                         className="w-full h-full object-cover"
+                        onError={() => setNavImgError(true)}
                       />
                     ) : (
                       user.full_name.charAt(0).toUpperCase()

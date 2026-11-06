@@ -42,14 +42,19 @@ export const updateProfileSchema = z.object({
   email: z.string().email('Định dạng email không hợp lệ').optional(),
 });
 
-export const changePasswordSchema = z.object({
-  current_password: z
-    .string({ required_error: 'Vui lòng nhập mật khẩu hiện tại' })
-    .min(1, 'Vui lòng nhập mật khẩu hiện tại'),
-  new_password: z
-    .string({ required_error: 'Vui lòng nhập mật khẩu mới' })
-    .min(8, 'Mật khẩu mới phải có tối thiểu 8 ký tự'),
-});
+export const changePasswordSchema = z
+  .object({
+    current_password: z
+      .string({ required_error: 'Vui lòng nhập mật khẩu hiện tại' })
+      .min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+    new_password: z
+      .string({ required_error: 'Vui lòng nhập mật khẩu mới' })
+      .min(8, 'Mật khẩu mới phải có tối thiểu 8 ký tự'),
+  })
+  .refine((data) => data.current_password !== data.new_password, {
+    message: 'Mật khẩu mới không được trùng với mật khẩu hiện tại',
+    path: ['new_password'],
+  });
 
 export const forgotPasswordSchema = z.object({
   email: z

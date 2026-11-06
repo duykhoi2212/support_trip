@@ -105,6 +105,15 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
     const user = await prisma.user.findUnique({ where: { phone: testPhone } });
     const newPassword = 'NewPassword@456';
 
+    // 8.1: Chặn đổi mật khẩu nếu mật khẩu mới trùng với mật khẩu hiện tại
+    await expect(
+      AuthService.changePassword(user!.id, {
+        current_password: testPassword,
+        new_password: testPassword,
+      })
+    ).rejects.toThrow('Mật khẩu mới không được trùng với mật khẩu hiện tại');
+
+    // 8.2: Đổi sang mật khẩu mới khác mật khẩu cũ
     const res = await AuthService.changePassword(user!.id, {
       current_password: testPassword,
       new_password: newPassword,

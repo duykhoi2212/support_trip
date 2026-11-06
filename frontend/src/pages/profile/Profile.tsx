@@ -22,6 +22,7 @@ export const Profile = () => {
 
   // Upload Avatar
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   if (!user) return null;
 
@@ -46,6 +47,11 @@ export const Profile = () => {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassMsg(null);
+
+    if (currentPassword === newPassword) {
+      setPassMsg({ type: 'error', text: 'Mật khẩu mới không được trùng với mật khẩu hiện tại.' });
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       setPassMsg({ type: 'error', text: 'Mật khẩu xác nhận không khớp.' });
@@ -84,6 +90,7 @@ export const Profile = () => {
     try {
       const updated = await authService.updateAvatar(file);
       updateUser(updated);
+      setImgError(false);
       alert('Cập nhật ảnh đại diện thành công!');
     } catch (err: any) {
       alert(err.message || 'Tải ảnh đại diện thất bại.');
@@ -98,8 +105,13 @@ export const Profile = () => {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
         <div className="relative group">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-3xl overflow-hidden border-4 border-white shadow-lg">
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+            {user.avatar_url && !imgError ? (
+              <img
+                src={user.avatar_url}
+                alt={user.full_name}
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+              />
             ) : (
               user.full_name.charAt(0).toUpperCase()
             )}

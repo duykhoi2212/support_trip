@@ -1,12 +1,11 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { AppError } from '../../middlewares/errorHandler.js';
+import { config } from '../../config/index.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, '../../uploads');
+// Đường dẫn tuyệt đối chuẩn xác đến thư mục uploads ở gốc backend
+export const uploadDir = path.resolve(process.cwd(), config.UPLOAD_DIR || 'uploads');
 
 // Đảm bảo thư mục uploads luôn tồn tại
 if (!fs.existsSync(uploadDir)) {

@@ -4,9 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter, meRouter } from './modules/auth-account/routes.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { uploadDir } from './modules/file-storage/multer.js';
 
 export const app = express();
 
@@ -15,8 +13,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Phục vụ thư mục static uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Phục vụ thư mục static uploads (chuẩn hóa đồng bộ cùng uploadDir của Multer)
+app.use('/uploads', express.static(uploadDir));
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

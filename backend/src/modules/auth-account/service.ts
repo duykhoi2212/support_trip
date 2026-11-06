@@ -250,6 +250,11 @@ export class AuthService {
       throw new AppError(400, 'INCORRECT_CURRENT_PASSWORD', 'Mật khẩu hiện tại không chính xác.');
     }
 
+    // Kiểm tra mật khẩu mới không được trùng với mật khẩu hiện tại
+    if (input.current_password === input.new_password) {
+      throw new AppError(400, 'SAME_AS_CURRENT_PASSWORD', 'Mật khẩu mới không được trùng với mật khẩu hiện tại.');
+    }
+
     // Băm mật khẩu mới
     const newPasswordHash = await bcrypt.hash(input.new_password, 10);
 
