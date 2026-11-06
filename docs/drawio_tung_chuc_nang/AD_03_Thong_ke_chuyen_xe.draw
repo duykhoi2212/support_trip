@@ -1,0 +1,106 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="AD-03" name="Sơ đồ tuần tự: Thống kê chuyến xe">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="667" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_2" value="Sơ đồ tuần tự: Báo cáo thống kê chuyến xe (AD-03)" style="text;html=1;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="8" width="700" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c_3" value="Quản trị viên (ADMIN)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="115" y="48" width="30" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="c_4" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="122" as="sourcePoint" />
+            <mxPoint x="130" y="607" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_5" value="Giao diện web" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="72" width="140" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_6" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="370" y="122" as="sourcePoint" />
+            <mxPoint x="370" y="607" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_7" value="Máy chủ ứng dụng" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="72" width="140" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_8" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="122" as="sourcePoint" />
+            <mxPoint x="610" y="607" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_9" value="PostgreSQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="805" y="62" width="90" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c_10" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="850" y="122" as="sourcePoint" />
+            <mxPoint x="850" y="607" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_11" value="1. Chọn khoảng thời gian thống kê (from_date, to_date)" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="167" as="sourcePoint" />
+            <mxPoint x="370" y="167" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_12" value="2. Gửi yêu cầu lấy thống kê (GET /admin/statistics/trips)" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="370" y="217" as="sourcePoint" />
+            <mxPoint x="610" y="217" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_13" value="Nếu" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=50;height=22;fillColor=none;strokeColor=#666666;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="252" width="880" height="325" as="geometry" />
+        </mxCell>
+        <mxCell id="c_14" value="[Khoảng thời gian hợp lệ (from_date &lt;= to_date)]" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="108" y="254" width="560" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c_15" value="3. Truy vấn bảng trips và transport_requests tính tổng KPI" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=block;endFill=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="282" as="sourcePoint" />
+            <mxPoint x="850" y="282" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_16" value="4. Trả về dữ liệu JSON thống kê chuyến, tỷ lệ hoàn thành &amp; lấp đầy" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=open;endFill=0;endSize=8;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="332" as="sourcePoint" />
+            <mxPoint x="370" y="332" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_17" value="5. Render thẻ KPI tổng quan và vẽ biểu đồ xu hướng" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=open;endFill=0;endSize=8;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="370" y="382" as="sourcePoint" />
+            <mxPoint x="130" y="382" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_18" style="endArrow=none;dashed=1;html=1;strokeColor=#666666;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="50" y="432" as="sourcePoint" />
+            <mxPoint x="930" y="432" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_19" value="[Khoảng ngày không hợp lệ (from_date &gt; to_date)]" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="58" y="436" width="560" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c_20" value="6. Phản hồi lỗi 400 (Ngày bắt đầu phải nhỏ hơn ngày kết thúc)" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=open;endFill=0;endSize=8;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="610" y="462" as="sourcePoint" />
+            <mxPoint x="370" y="462" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c_21" value="7. Cảnh báo quản trị viên chọn lại khoảng thời gian hợp lệ" style="html=1;verticalAlign=bottom;fontSize=11;labelBackgroundColor=none;endArrow=open;endFill=0;endSize=8;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="370" y="512" as="sourcePoint" />
+            <mxPoint x="130" y="512" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

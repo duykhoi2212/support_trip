@@ -4,6 +4,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { authRouter, meRouter } from './modules/auth-account/routes.js';
+import { vehicleRouter } from './modules/vehicle/routes.js';
+import { tripRouter } from './modules/trip/routes.js';
+import { mapRouter } from './modules/map/routes.js';
 import { uploadDir } from './modules/file-storage/multer.js';
 
 export const app = express();
@@ -23,14 +26,17 @@ app.get('/api/health', (_req, res) => {
     data: {
       status: 'UP',
       timestamp: new Date().toISOString(),
-      service: 'DiNho & GuiDo AI Coordination Backend API',
+      service: 'GoX AI Coordination Backend API',
     },
   });
 });
 
-// Auth & Me Routes
+// Business Modules Routes
 app.use('/api/auth', authRouter);
 app.use('/api/me', meRouter);
+app.use('/api/vehicles', vehicleRouter);
+app.use('/api/trips', tripRouter);
+app.use('/api/map', mapRouter);
 
 // Centralized error handler
 app.use(errorHandler);

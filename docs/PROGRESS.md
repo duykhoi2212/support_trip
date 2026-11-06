@@ -14,8 +14,8 @@ Trạng thái ký hiệu:
 | :---: | :--- | :---: | :---: |
 | **Giai đoạn 1** | Khởi tạo monorepo (FE + BE), Prisma schema từ DBML, migration, seed, unit test core | 🟢 **Đã hoàn thành** | Ngày 1 |
 | **Giai đoạn 2** | Auth + Phân quyền (requireRole) + Hồ sơ cá nhân + Quên mật khẩu (CM-01..03) | 🟢 **Đã hoàn thành** | Ngày 2 |
-| **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟡 Kế tiếp | Ngày 3 |
-| **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🔴 Chưa làm | Ngày 4 |
+| **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟢 **Đã hoàn thành** | Ngày 3 |
+| **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟡 Kế tiếp | Ngày 4 |
 | **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🔴 Chưa làm | Ngày 5 |
 | **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🔴 Chưa làm | Ngày 6 |
 | **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🔴 Chưa làm | Ngày 7 |
@@ -36,11 +36,11 @@ Trạng thái ký hiệu:
 ### 2.2. Chức năng Tài xế (Driver - DR)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| `DR-01` | Tạo chuyến xe (>= 24h, ORS routing, snapshot xe) | 🔴 Chưa làm | `[ ]` | `[ ]` | Kiểm tra chồng lịch không đệm |
+| `DR-01` | Tạo chuyến xe (>= 24h, ORS routing, snapshot xe) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra chồng lịch không đệm, snapshot sức chứa, polyline |
 | `DR-02` | Quản lý yêu cầu vận chuyển (Xem danh sách, Chấp nhận, Từ chối) | 🔴 Chưa làm | `[ ]` | `[ ]` | Khóa nguyên tử khi chấp nhận, hiện SĐT |
 | `DR-03` | Điều hành chuyến xe (Bắt đầu, Cập nhật tiến trình đón/trả/giao, Kết thúc) | 🔴 Chưa làm | `[ ]` | `[ ]` | Chỉ hoàn thành khi tất cả request đã kết thúc |
-| `DR-04` | Quản lý phương tiện (Thêm xe kèm ảnh, Bật/Tắt hoạt động) | 🔴 Chưa làm | `[ ]` | `[ ]` | Không trùng loại xe + biển số; không tắt xe đang chạy |
-| `DR-05` | Quản lý danh sách chuyến & Hủy chuyến | 🔴 Chưa làm | `[ ]` | `[ ]` | Hủy chuyến chuyển request thành CANCELLED & báo User |
+| `DR-04` | Quản lý phương tiện (Thêm xe kèm ảnh, Bật/Tắt hoạt động) | 🟢 Đã xong | `[x]` | `[x]` | Không trùng loại xe + biển số; không tắt xe đang chạy |
+| `DR-05` | Quản lý danh sách chuyến & Hủy chuyến | 🟢 Đã xong | `[x]` | `[x]` | Hủy chuyến chuyển request thành CANCELLED & báo User |
 
 ### 2.3. Chức năng Người dùng (User - US)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
@@ -68,6 +68,13 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-06 (Giai đoạn 3 - HOÀN THÀNH)**:
+  - Xây dựng OpenRouteService Map Adapter và module định tuyến (`/api/map/route`) kèm Mock Router thông minh khi chưa có API key.
+  - Hoàn thành module Quản lý phương tiện (`DR-04`): thêm xe kèm ảnh chụp upload Multer, bật/tắt hoạt động, chặn tắt xe đang chạy trong chuyến OPEN/CLOSED/IN_PROGRESS.
+  - Hoàn thành module Tạo chuyến xe (`DR-01`): kiểm tra thời gian khởi hành >= 24h, snapshot sức chứa xe, chống chồng lịch di chuyển cùng xe nguyên tử, tích hợp tính toán khoảng cách và vẽ polyline.
+  - Hoàn thành module Hủy chuyến xe (`DR-05`): kiểm tra chuyến xe OPEN/CLOSED, ghi nhận lý do hủy, chuyển trạng thái và tạo thông báo tự động.
+  - Viết 8 integration test cho Vehicle & Trip: 33/33 test passed 100% trên Neon DB.
+  - Xây dựng giao diện Frontend: Quản lý phương tiện (`Vehicles.tsx`), Đăng chuyến xe kèm Leaflet Map chọn tọa độ trực quan (`CreateTrip.tsx`), Quản lý danh sách chuyến & Modal hủy chuyến (`MyTrips.tsx`). Cập nhật nhận diện thương hiệu GoX ("Kết nối hành trình – Tối ưu chuyến đi").
 - **2026-10-30 (Giai đoạn 2 - HOÀN THÀNH)**:
   - Kết nối Neon PostgreSQL 16 live, đồng bộ 9 bảng và partial unique index.
   - Xây dựng hoàn chỉnh module `auth-account` backend (CM-01, CM-02, CM-03, Quên mật khẩu).

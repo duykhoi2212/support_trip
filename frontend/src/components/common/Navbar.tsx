@@ -47,11 +47,11 @@ export const Navbar = () => {
             <Car className="w-6 h-6" />
           </div>
           <div>
-            <span className="font-bold text-lg text-slate-900 tracking-tight block leading-tight">
-              DiNho & GuiDo AI
+            <span className="font-bold text-xl text-slate-900 tracking-tight block leading-tight">
+              GoX
             </span>
             <span className="text-xs text-slate-500 font-medium">
-              Điều phối chuyến xe thông minh
+              Kết nối hành trình – Tối ưu chuyến đi
             </span>
           </div>
         </Link>

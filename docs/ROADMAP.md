@@ -1,7 +1,7 @@
 # KẾ HOẠCH DỰ ÁN VÀ QUY TRÌNH NGHIỆP VỤ (ROADMAP & BUSINESS FLOWS)
 
-Dự án: **Nền tảng kết nối đi nhờ và gửi đồ theo chuyến xe tích hợp AI hỗ trợ điều phối**  
-Thời lượng cam kết: **7 Ngày**  
+Dự án: **Nền tảng kết nối đi nhờ và gửi đồ theo chuyến xe tích hợp AI hỗ trợ điều phối**
+Thời lượng cam kết: **7 Ngày**
 Mục tiêu: Đồ án tốt nghiệp hoàn chỉnh, kiến trúc chuẩn mực, logic xử lý chặt chẽ không có kẽ hở dữ liệu.
 
 ---
@@ -9,6 +9,7 @@ Mục tiêu: Đồ án tốt nghiệp hoàn chỉnh, kiến trúc chuẩn mực,
 ## 1. CÁC QUY TRÌNH NGHIỆP VỤ CỐT LÕI (BUSINESS FLOWS)
 
 ### 1.1. Luồng 1: Tạo Chuyến Xe (DRIVER)
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -39,6 +40,7 @@ sequenceDiagram
 ```
 
 ### 1.2. Luồng 2: Tìm Kiếm Chuyến Xe (USER) - Thường & AI
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -70,6 +72,7 @@ sequenceDiagram
 ```
 
 ### 1.3. Luồng 3: Tạo Yêu Cầu & Kiểm Tra Bán Kính 2km (USER)
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -93,6 +96,7 @@ sequenceDiagram
 ```
 
 ### 1.4. Luồng 4: Duyệt Yêu Cầu & Giữ Chỗ Nguyên Tử (DRIVER)
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -118,13 +122,14 @@ sequenceDiagram
 ```
 
 ### 1.5. Luồng 5: Hủy Yêu Cầu, Tính Tỷ Lệ Hủy & Xử Phạt Vi Phạm (CS-02, CS-03)
+
 ```mermaid
 flowchart TD
     A[Bắt đầu tính tỷ lệ hủy tuần vào Chủ nhật 23:59 Asia/Ho_Chi_Minh] --> B[Lấy danh sách tất cả USER có yêu cầu với chuyến khởi hành trong tuần T2-CN]
     B --> C{Mẫu số: Tổng số yêu cầu đã từng được xác nhận trong tuần}
     C -- Mẫu số == 0 --> D[Bỏ qua User này trong tuần]
     C -- Mẫu số > 0 --> E[Tử số: Số yêu cầu bị tính hủy]
-    
+
     subgraph Cách tính Tử số & Mẫu số
         E1[User tự hủy sau khi đã ACCEPTED] --> E
         E2[Tài xế đánh dấu FAILED do: WRONG_INFO, UNREACHABLE, ABSENT] --> E
@@ -147,15 +152,15 @@ flowchart TD
 
 ## 2. KẾ HOẠCH THỰC HIỆN 7 NGÀY (7-DAY ROADMAP)
 
-| Ngày | Giai đoạn & Nội dung công việc | Mã chức năng liên quan | Deliverables / Kết quả kiểm tra |
-| :--- | :--- | :--- | :--- |
-| **Ngày 1** | **Khởi tạo kiến trúc Monorepo & CSDL chuẩn**<br>- Thiết lập thư mục `backend/` và `frontend/`<br>- Cài đặt dependencies, cấu hình TypeScript, ESLint, Zod<br>- Viết `schema.prisma` chính xác 100% từ file DBML<br>- Chạy Prisma migration, Seed dữ liệu mẫu đầy đủ roles<br>- Unit tests cho các hàm helper cốt lõi (khoảng cách 2km Turf.js, tính tỷ lệ hủy) | Khung nền tảng | - Monorepo chạy được lệnh dev cả 2 bên<br>- PostgreSQL có đủ 9 bảng, migration sạch sẽ<br>- Seed 1 admin, 2 tài xế, 3 xe, 3 user |
-| **Ngày 2** | **Xác thực, Phân quyền & Quản lý Hồ sơ**<br>- Module `auth-account` (JWT, bcrypt, cookie/bearer)<br>- Middleware phân quyền `requireRole` (USER, DRIVER, ADMIN)<br>- APIs: Đăng ký, Đăng nhập, Xem/Sửa hồ sơ, Đổi mật khẩu, Upload avatar qua multer<br>- Giao diện Login, Register, Profile | CM-01<br>CM-02<br>CM-03 | - Đăng ký role cố định, không đổi SĐT<br>- Đăng nhập nhận JWT hợp lệ<br>- Quản lý thông tin & avatar lưu tại `uploads/` |
-| **Ngày 3** | **Quản lý Phương tiện & Điều phối Chuyến xe**<br>- Module `vehicle` (Thêm xe kèm ảnh, bật/tắt, chặn trùng biển số)<br>- Module `map-adapter` (Kết nối OpenRouteService lấy polyline & ETA)<br>- Module `trip` (Tạo chuyến >= 24h, kiểm tra chồng lịch không đệm, snapshot sức chứa, xem danh sách, hủy chuyến)<br>- UI Tài xế: Quản lý xe, Bản đồ tạo chuyến & xem lộ trình Leaflet | DR-04<br>DR-01<br>DR-05 | - Tạo xe thành công với ảnh upload<br>- ORS vẽ tuyến đường chính xác trên bản đồ<br>- Chặn tạo chuyến nếu xe trùng lịch |
-| **Ngày 4** | **Yêu cầu Vận chuyển, Duyệt Chỗ & Quản lý Chuyến**<br>- Module `transport-request` (Tạo yêu cầu RIDE / PACKAGE, kiểm tra 2km polyline)<br>- Duyệt yêu cầu nguyên tử: `SELECT ... FOR UPDATE` kiểm tra snapshot sức chứa<br>- Điều hành tiến trình: Picked Up, Dropped Off, Delivered, Failed (kèm lý do)<br>- Module `notification` (Polling, đánh dấu đã đọc, chuông thông báo)<br>- UI Người dùng gửi yêu cầu, UI Tài xế duyệt & điều hành chuyến | US-01<br>US-03<br>DR-02<br>DR-03 | - Kiểm tra 2km chuẩn xác<br>- Khóa nguyên tử chống vượt sức chứa<br>- Hiển thị SĐT 2 bên ngay sau khi ACCEPTED |
-| **Ngày 5** | **Các Tác vụ Hệ thống Định kỳ (Cron Jobs)**<br>- Module `scheduler` (Node-cron):<br>  + **CS-01**: Mỗi phút quét đóng chuyến trước 6h & chuyển yêu cầu PENDING thành EXPIRED<br>  + **CS-02**: Chốt tỷ lệ hủy tuần (T2-CN, giờ VN), xử phạt khóa tài khoản<br>  + **CS-03**: Mở khóa tự động cho LOCKED_TEMP sau 14 ngày<br>  + Cơ chế chạy bù (catch-up) khi server reboot | CS-01<br>CS-02<br>CS-03<br>CS-04 | - Test mô phỏng mốc -6h hoạt động chính xác<br>- Test mô phỏng chốt tỷ lệ hủy > 5% khóa tài khoản |
-| **Ngày 6** | **Tìm kiếm Thông minh với Gemini AI & Sự cố & Admin**<br>- Module `ai-adapter`: Prompt Gemini trích xuất ý định tiếng Việt ra structured query<br>- Cơ chế CS-05: Fallback tự động sang tìm kiếm thường khi AI lỗi<br>- Module `incident` (Báo cáo sự cố, chuyển trạng thái 4 bước có thông báo)<br>- Module `admin` (Mở khóa tài khoản có lý do + audit log, thống kê chuyến theo ngày)<br>- UI Admin Dashboard, UI Tìm kiếm AI | US-02<br>CS-05<br>CM-04<br>AD-01<br>AD-02<br>AD-03 | - Tìm kiếm AI hiểu tiếng Việt tự nhiên<br>- Admin xem thống kê, mở khóa tài khoản ghi log đầy đủ |
-| **Ngày 7** | **Đóng gói Docker, Tối ưu Giao diện, Test & Hướng dẫn VPS**<br>- Tích hợp bản thiết kế giao diện từ Google Stitch (nếu có)<br>- Dockerfile tối ưu multi-stage build cho Frontend & Backend<br>- File `docker-compose.yml` (PostgreSQL, Backend, Nginx reverse proxy, Volume uploads)<br>- Viết tài liệu hướng dẫn triển khai VPS chi tiết (SSL Certbot, script backup CSDL)<br>- Rà soát toàn bộ lỗi và hoàn thiện đồ án | Đóng gói & Triển khai | - Chạy thử nghiệm thành công 100% trên môi trường Docker<br>- Sẵn sàng bảo vệ đồ án tốt nghiệp |
+| Ngày       | Giai đoạn & Nội dung công việc                                                                                                                                                                                                                                                                                                                                                                                                  | Mã chức năng liên quan         | Deliverables / Kết quả kiểm tra                                                                                          |
+| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **Ngày 1** | **Khởi tạo kiến trúc Monorepo & CSDL chuẩn**- Thiết lập thư mục `backend/` và `frontend/`- Cài đặt dependencies, cấu hình TypeScript, ESLint, Zod- Viết `schema.prisma` chính xác 100% từ file DBML- Chạy Prisma migration, Seed dữ liệu mẫu đầy đủ roles- Unit tests cho các hàm helper cốt lõi (khoảng cách 2km Turf.js, tính tỷ lệ hủy)                                                                                      | Khung nền tảng                 | - Monorepo chạy được lệnh dev cả 2 bên- PostgreSQL có đủ 9 bảng, migration sạch sẽ- Seed 1 admin, 2 tài xế, 3 xe, 3 user |
+| **Ngày 2** | **Xác thực, Phân quyền & Quản lý Hồ sơ**- Module `auth-account` (JWT, bcrypt, cookie/bearer)- Middleware phân quyền `requireRole` (USER, DRIVER, ADMIN)- APIs: Đăng ký, Đăng nhập, Xem/Sửa hồ sơ, Đổi mật khẩu, Upload avatar qua multer- Giao diện Login, Register, Profile                                                                                                                                                    | CM-01CM-02CM-03                | - Đăng ký role cố định, không đổi SĐT- Đăng nhập nhận JWT hợp lệ- Quản lý thông tin & avatar lưu tại `uploads/`          |
+| **Ngày 3** | **Quản lý Phương tiện & Điều phối Chuyến xe**- Module `vehicle` (Thêm xe kèm ảnh, bật/tắt, chặn trùng biển số)- Module `map-adapter` (Kết nối OpenRouteService lấy polyline & ETA)- Module `trip` (Tạo chuyến >= 24h, kiểm tra chồng lịch không đệm, snapshot sức chứa, xem danh sách, hủy chuyến)- UI Tài xế: Quản lý xe, Bản đồ tạo chuyến & xem lộ trình Leaflet                                                             | DR-04DR-01DR-05                | - Tạo xe thành công với ảnh upload- ORS vẽ tuyến đường chính xác trên bản đồ- Chặn tạo chuyến nếu xe trùng lịch          |
+| **Ngày 4** | **Yêu cầu Vận chuyển, Duyệt Chỗ & Quản lý Chuyến**- Module `transport-request` (Tạo yêu cầu RIDE / PACKAGE, kiểm tra 2km polyline)- Duyệt yêu cầu nguyên tử: `SELECT ... FOR UPDATE` kiểm tra snapshot sức chứa- Điều hành tiến trình: Picked Up, Dropped Off, Delivered, Failed (kèm lý do)- Module `notification` (Polling, đánh dấu đã đọc, chuông thông báo)- UI Người dùng gửi yêu cầu, UI Tài xế duyệt & điều hành chuyến | US-01US-03DR-02DR-03           | - Kiểm tra 2km chuẩn xác- Khóa nguyên tử chống vượt sức chứa- Hiển thị SĐT 2 bên ngay sau khi ACCEPTED                   |
+| **Ngày 5** | **Các Tác vụ Hệ thống Định kỳ (Cron Jobs)**- Module `scheduler` (Node-cron): + **CS-01**: Mỗi phút quét đóng chuyến trước 6h & chuyển yêu cầu PENDING thành EXPIRED + **CS-02**: Chốt tỷ lệ hủy tuần (T2-CN, giờ VN), xử phạt khóa tài khoản + **CS-03**: Mở khóa tự động cho LOCKED_TEMP sau 14 ngày + Cơ chế chạy bù (catch-up) khi server reboot                                                                             | CS-01CS-02CS-03CS-04           | - Test mô phỏng mốc -6h hoạt động chính xác- Test mô phỏng chốt tỷ lệ hủy > 5% khóa tài khoản                            |
+| **Ngày 6** | **Tìm kiếm Thông minh với Gemini AI & Sự cố & Admin**- Module `ai-adapter`: Prompt Gemini trích xuất ý định tiếng Việt ra structured query- Cơ chế CS-05: Fallback tự động sang tìm kiếm thường khi AI lỗi- Module `incident` (Báo cáo sự cố, chuyển trạng thái 4 bước có thông báo)- Module `admin` (Mở khóa tài khoản có lý do + audit log, thống kê chuyến theo ngày)- UI Admin Dashboard, UI Tìm kiếm AI                    | US-02CS-05CM-04AD-01AD-02AD-03 | - Tìm kiếm AI hiểu tiếng Việt tự nhiên- Admin xem thống kê, mở khóa tài khoản ghi log đầy đủ                             |
+| **Ngày 7** | **Đóng gói Docker, Tối ưu Giao diện, Test & Hướng dẫn VPS**- Tích hợp bản thiết kế giao diện từ Google Stitch (nếu có)- Dockerfile tối ưu multi-stage build cho Frontend & Backend- File `docker-compose.yml` (PostgreSQL, Backend, Nginx reverse proxy, Volume uploads)- Viết tài liệu hướng dẫn triển khai VPS chi tiết (SSL Certbot, script backup CSDL)- Rà soát toàn bộ lỗi và hoàn thiện đồ án                            | Đóng gói & Triển khai          | - Chạy thử nghiệm thành công 100% trên môi trường Docker- Sẵn sàng bảo vệ đồ án tốt nghiệp                               |
 
 ---
 

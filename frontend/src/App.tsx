@@ -7,6 +7,9 @@ import { Register } from './pages/auth/Register';
 import { ForgotPassword } from './pages/auth/ForgotPassword';
 import { ResetPassword } from './pages/auth/ResetPassword';
 import { Profile } from './pages/profile/Profile';
+import { Vehicles } from './pages/driver/Vehicles';
+import { MyTrips } from './pages/driver/MyTrips';
+import { CreateTrip } from './pages/driver/CreateTrip';
 import { Car, Package, Sparkles, ShieldCheck } from 'lucide-react';
 
 const HomePage = () => {
@@ -17,7 +20,7 @@ const HomePage = () => {
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-4 border border-white/20">
             <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>Nền tảng kết nối đi nhờ & gửi đồ AI</span>
+            <span>GoX – Kết nối hành trình, tối ưu chuyến đi</span>
           </div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4">
             Chia sẻ hành trình, gửi đồ tiện lợi & tiết kiệm
@@ -119,6 +122,34 @@ export default function App() {
                 }
               />
 
+              {/* Driver Routes */}
+              <Route
+                path="/driver/vehicles"
+                element={
+                  <ProtectedRoute allowedRoles={['DRIVER']}>
+                    <Vehicles />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/driver/trips"
+                element={
+                  <ProtectedRoute allowedRoles={['DRIVER']}>
+                    <MyTrips />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/driver/trips/create"
+                element={
+                  <ProtectedRoute allowedRoles={['DRIVER']}>
+                    <CreateTrip />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* 404 Route */}
               <Route
                 path="*"
@@ -139,7 +170,7 @@ export default function App() {
 
           <footer className="bg-white border-t border-slate-200 py-6 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-              Đồ án tốt nghiệp đại học • Nền tảng kết nối đi nhờ và gửi đồ theo chuyến xe tích hợp AI hỗ trợ điều phối
+              GoX • Kết nối hành trình – Tối ưu chuyến đi
             </div>
           </footer>
         </div>
