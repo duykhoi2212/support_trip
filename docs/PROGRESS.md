@@ -68,6 +68,13 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-09 (Giai đoạn 3 - NÂNG CẤP HOÀN THIỆN THEO PHẢN HỒI)**:
+  - Bổ sung trường "Thời gian kết thúc chuyến dự kiến" (`eta`) cho phép tài xế tùy chỉnh lịch trình hoặc lấy gợi ý tự động từ bản đồ.
+  - Nâng cấp cơ chế chống chồng lịch 2 tầng: Ràng buộc cả Tài xế (`driver_id`) và Phương tiện (`vehicle_id`) kèm 1 giờ đệm nghỉ ngơi giữa các chuyến xe liên tiếp.
+  - Tích hợp bộ định tuyến OSRM (Open Source Routing Machine) miễn phí 100% không cần API key, trả về tọa độ uốn lượn chính xác bám sát mạng lưới đường cao tốc và quốc lộ Việt Nam.
+  - Khắc phục triệt để lỗi nền xám của Leaflet: nhúng CSS trực tiếp vào Vite bundle, tích hợp CartoDB Voyager Tile với tên đường/địa danh tiếng Việt sắc nét và tự động co giãn `ResizeObserver`.
+  - Tích hợp thanh tìm kiếm địa điểm thông minh (Geocoding) hỗ trợ tìm bến xe, sân bay, xã/phường/tỉnh trên toàn quốc.
+  - Toàn bộ 34/34 Unit & Integration test chạy trên Neon DB đều vượt qua 100%.
 - **2026-11-06 (Giai đoạn 3 - HOÀN THÀNH)**:
   - Xây dựng OpenRouteService Map Adapter và module định tuyến (`/api/map/route`) kèm Mock Router thông minh khi chưa có API key.
   - Hoàn thành module Quản lý phương tiện (`DR-04`): thêm xe kèm ảnh chụp upload Multer, bật/tắt hoạt động, chặn tắt xe đang chạy trong chuyến OPEN/CLOSED/IN_PROGRESS.
