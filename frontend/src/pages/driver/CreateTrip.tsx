@@ -4,13 +4,16 @@ import {
   Car,
   MapPin,
   Calendar,
+  Clock,
   ArrowRight,
   AlertCircle,
   CheckCircle2,
   Navigation,
   Info,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Search,
+  RotateCcw
 } from 'lucide-react';
 import { vehicleService } from '../../services/vehicleService';
 import { tripService } from '../../services/tripService';
@@ -18,18 +21,21 @@ import { mapService } from '../../services/mapService';
 import { Vehicle, RouteResult } from '../../types';
 import { RouteMap } from '../../components/map/RouteMap';
 
-// Danh sách các thành phố phổ biến tại Việt Nam để chọn nhanh
+// Danh sách các địa điểm & bến xe phổ biến tại Việt Nam
 const POPULAR_LOCATIONS = [
-  { name: 'Hà Nội', lat: 21.0285, lng: 105.8542 },
-  { name: 'Hải Phòng', lat: 20.8449, lng: 106.6881 },
-  { name: 'Quảng Ninh', lat: 20.9505, lng: 107.0734 },
-  { name: 'Nam Định', lat: 20.4344, lng: 106.1764 },
-  { name: 'Thái Bình', lat: 20.4463, lng: 106.3366 },
-  { name: 'Ninh Bình', lat: 20.2506, lng: 105.9745 },
-  { name: 'Thanh Hóa', lat: 19.8067, lng: 105.7852 },
-  { name: 'Nghệ An', lat: 18.6734, lng: 105.6813 },
-  { name: 'Đà Nẵng', lat: 16.0544, lng: 108.2022 },
-  { name: 'TP. Hồ Chí Minh', lat: 10.8231, lng: 106.6297 },
+  { name: 'Bến xe Mỹ Đình, Hà Nội', lat: 21.0285, lng: 105.7782 },
+  { name: 'Bến xe Giáp Bát, Hà Nội', lat: 20.9806, lng: 105.8415 },
+  { name: 'Bến xe Nước Ngầm, Hà Nội', lat: 20.9631, lng: 105.8465 },
+  { name: 'Sân bay Nội Bài, Hà Nội', lat: 21.2212, lng: 105.8072 },
+  { name: 'TP. Nam Định (Tỉnh Nam Định)', lat: 20.4344, lng: 106.1764 },
+  { name: 'TP. Hải Phòng (Cảng Hải Phòng)', lat: 20.8449, lng: 106.6881 },
+  { name: 'TP. Thái Bình', lat: 20.4463, lng: 106.3366 },
+  { name: 'TP. Ninh Bình', lat: 20.2506, lng: 105.9745 },
+  { name: 'TP. Thanh Hóa', lat: 19.8067, lng: 105.7852 },
+  { name: 'TP. Vinh, Nghệ An', lat: 18.6734, lng: 105.6813 },
+  { name: 'TP. Đà Nẵng', lat: 16.0544, lng: 108.2022 },
+  { name: 'Bến xe Miền Đông, TP.HCM', lat: 10.8142, lng: 106.7118 },
+  { name: 'Sân bay Tân Sơn Nhất, TP.HCM', lat: 10.8185, lng: 106.6588 },
 ];
 
 export const CreateTrip: React.FC = () => {
@@ -41,28 +47,38 @@ export const CreateTrip: React.FC = () => {
   const [loadingVehicles, setLoadingVehicles] = useState<boolean>(true);
 
   // Điểm xuất phát
-  const [originName, setOriginName] = useState<string>('Hà Nội');
+  const [originName, setOriginName] = useState<string>('Bến xe Mỹ Đình, Hà Nội');
   const [originLat, setOriginLat] = useState<number>(21.0285);
-  const [originLng, setOriginLng] = useState<number>(105.8542);
+  const [originLng, setOriginLng] = useState<number>(105.7782);
 
   // Điểm đến
-  const [destName, setDestName] = useState<string>('Nam Định');
+  const [destName, setDestName] = useState<string>('TP. Nam Định');
   const [destLat, setDestLat] = useState<number>(20.4344);
   const [destLng, setDestLng] = useState<number>(106.1764);
 
   // Chế độ click bản đồ: 'origin' hoặc 'destination'
   const [mapPickMode, setMapPickMode] = useState<'origin' | 'destination'>('origin');
 
-  // Thời gian khởi hành (mặc định 25 giờ sau để thỏa mãn điều kiện >= 24h)
-  const defaultDeparture = new Date(Date.now() + 25 * 60 * 60 * 1000);
+  // Ô tìm kiếm địa điểm thông minh (Geocoding)
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [searching, setSearching] = useState<boolean>(false);
+
+  // Helper format ngày giờ cho input type="datetime-local"
   const formatDateTimeLocal = (d: Date) => {
     const pad = (n: number) => (n < 10 ? '0' + n : n);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  // Thời gian khởi hành (mặc định 25 giờ sau để thỏa mãn điều kiện >= 24h)
+  const defaultDeparture = new Date(Date.now() + 25 * 60 * 60 * 1000);
   const [departureTime, setDepartureTime] = useState<string>(formatDateTimeLocal(defaultDeparture));
 
-  // Kết quả tính toán lộ trình từ Map Adapter
+  // Thời gian kết thúc chuyến xe dự kiến (ETA)
+  const [etaTime, setEtaTime] = useState<string>('');
+  const [isEtaManual, setIsEtaManual] = useState<boolean>(false);
+
+  // Kết quả tính toán lộ trình từ OSRM Map Adapter
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState<boolean>(false);
 
@@ -91,7 +107,7 @@ export const CreateTrip: React.FC = () => {
     fetchVehicles();
   }, []);
 
-  // Tự động tính toán tuyến đường khi tọa độ thay đổi
+  // Tự động tính toán lộ trình đường bộ khi tọa độ thay đổi
   useEffect(() => {
     if (originLat && originLng && destLat && destLng) {
       handleCalculateRoute();
@@ -106,12 +122,28 @@ export const CreateTrip: React.FC = () => {
         { lat: destLat, lng: destLng }
       );
       setRouteResult(res);
+
+      // Nếu tài xế chưa chỉnh ETA bằng tay, tự động cập nhật ETA dự kiến
+      if (!isEtaManual && departureTime) {
+        const depDate = new Date(departureTime).getTime();
+        const autoEta = new Date(depDate + res.duration_min * 60 * 1000);
+        setEtaTime(formatDateTimeLocal(autoEta));
+      }
     } catch (err: any) {
       console.error('Lỗi tính lộ trình:', err);
     } finally {
       setCalculatingRoute(false);
     }
   };
+
+  // Cập nhật ETA khi tài xế đổi giờ khởi hành (nếu chưa chỉnh thủ công)
+  useEffect(() => {
+    if (!isEtaManual && routeResult && departureTime) {
+      const depDate = new Date(departureTime).getTime();
+      const autoEta = new Date(depDate + routeResult.duration_min * 60 * 1000);
+      setEtaTime(formatDateTimeLocal(autoEta));
+    }
+  }, [departureTime]);
 
   // Xử lý khi click vào bản đồ
   const handleMapClick = (point: { lat: number; lng: number }) => {
@@ -126,6 +158,48 @@ export const CreateTrip: React.FC = () => {
     }
   };
 
+  // Tìm kiếm địa điểm trực tuyến qua OpenStreetMap Photon API
+  const handleSearchLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+
+    try {
+      setSearching(true);
+      const res = await fetch(
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery.trim())}&limit=5`
+      );
+      const data = await res.json();
+      const items = (data.features || []).map((f: any) => {
+        const p = f.properties || {};
+        const labelParts = [p.name, p.district, p.city, p.state].filter(Boolean);
+        return {
+          name: labelParts.join(', ') || p.name || 'Địa điểm không tên',
+          lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
+          lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
+        };
+      });
+      setSearchResults(items);
+    } catch (err) {
+      console.warn('Lỗi tìm kiếm địa điểm:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleApplySearchResult = (item: { name: string; lat: number; lng: number }) => {
+    if (mapPickMode === 'origin') {
+      setOriginName(item.name);
+      setOriginLat(item.lat);
+      setOriginLng(item.lng);
+    } else {
+      setDestName(item.name);
+      setDestLat(item.lat);
+      setDestLng(item.lng);
+    }
+    setSearchResults([]);
+    setSearchQuery('');
+  };
+
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
   // Kiểm tra thời gian khởi hành >= 24h
@@ -136,18 +210,22 @@ export const CreateTrip: React.FC = () => {
     return diffHours >= 23.95; // Cho phép sai số vài giây
   };
 
-  // Tính thời gian đến dự kiến (ETA)
-  const calculateETAString = () => {
-    if (!departureTime || !routeResult) return null;
-    const dep = new Date(departureTime);
-    const eta = new Date(dep.getTime() + routeResult.duration_min * 60 * 1000);
-    return eta.toLocaleString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+  // Kiểm tra thời gian kết thúc (ETA) phải sau thời gian khởi hành + thời gian chạy xe
+  const isEtaValid = () => {
+    if (!etaTime) return false;
+    const depDate = new Date(departureTime).getTime();
+    const etaDate = new Date(etaTime).getTime();
+    const minDurationMs = (routeResult?.duration_min || 15) * 60 * 1000;
+    return etaDate >= depDate + minDurationMs;
+  };
+
+  const handleResetEtaToMinimum = () => {
+    if (routeResult && departureTime) {
+      const depDate = new Date(departureTime).getTime();
+      const autoEta = new Date(depDate + routeResult.duration_min * 60 * 1000);
+      setEtaTime(formatDateTimeLocal(autoEta));
+      setIsEtaManual(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -161,6 +239,11 @@ export const CreateTrip: React.FC = () => {
 
     if (!isDepartureValid()) {
       setErrorMessage('Thời gian khởi hành phải cách hiện tại ít nhất 24 giờ theo quy định của GoX.');
+      return;
+    }
+
+    if (!isEtaValid()) {
+      setErrorMessage('Thời gian kết thúc chuyến dự kiến phải lớn hơn thời gian khởi hành cộng thời gian di chuyển tối thiểu.');
       return;
     }
 
@@ -185,12 +268,16 @@ export const CreateTrip: React.FC = () => {
         dest_lat: destLat,
         dest_lng: destLng,
         departure_time: new Date(departureTime).toISOString(),
+        eta: new Date(etaTime).toISOString(),
       });
 
       navigate('/driver/trips');
     } catch (err: any) {
-      if (err.response?.data?.error?.code === 'VEHICLE_SCHEDULE_CONFLICT') {
-        setErrorMessage('Phương tiện đã có lịch trình di chuyển trong khoảng thời gian này. Vui lòng chọn giờ hoặc xe khác.');
+      if (err.response?.data?.error?.code === 'SCHEDULE_CONFLICT') {
+        setErrorMessage(
+          err.response?.data?.error?.message ||
+          'Tài xế hoặc phương tiện đã có lịch trình trong khung giờ này (kèm 1 giờ đệm). Vui lòng chọn thời gian khác.'
+        );
       } else if (err.response?.data?.error?.code === 'DEPARTURE_TOO_SOON') {
         setErrorMessage('Chuyến xe phải được đăng trước thời gian khởi hành ít nhất 24 giờ.');
       } else {
@@ -214,7 +301,7 @@ export const CreateTrip: React.FC = () => {
             Tạo chuyến xe đường dài
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Thiết lập lộ trình, thời gian khởi hành và chia sẻ sức chứa xe với người có nhu cầu.
+            Thiết lập lộ trình thực tế, thời gian khởi hành và thời gian kết thúc chuyến không trùng lịch.
           </p>
         </div>
 
@@ -275,7 +362,7 @@ export const CreateTrip: React.FC = () => {
               <select
                 value={selectedVehicleId}
                 onChange={(e) => setSelectedVehicleId(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium bg-white"
               >
                 {vehicles.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -310,7 +397,7 @@ export const CreateTrip: React.FC = () => {
                 Lộ trình di chuyển
               </h2>
 
-              {/* Nút chọn chế độ click bản đồ */}
+              {/* Chế độ chọn điểm xuất phát / điểm đến */}
               <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
                 <button
                   type="button"
@@ -321,7 +408,7 @@ export const CreateTrip: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Chọn Điểm xuất phát trên map
+                  Đang chọn Điểm xuất phát
                 </button>
                 <button
                   type="button"
@@ -332,8 +419,55 @@ export const CreateTrip: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Chọn Điểm đến trên map
+                  Đang chọn Điểm đến
                 </button>
+              </div>
+
+              {/* Ô tìm kiếm địa chỉ nhanh trên OpenStreetMap */}
+              <div className="relative">
+                <div className="flex space-x-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchLocation(e);
+                        }
+                      }}
+                      placeholder={`Tìm địa chỉ cho ${mapPickMode === 'origin' ? 'Điểm xuất phát' : 'Điểm đến'}...`}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSearchLocation}
+                    disabled={searching}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {searching ? 'Đang tìm...' : 'Tìm'}
+                  </button>
+                </div>
+
+                {/* Danh sách kết quả gợi ý địa chỉ */}
+                {searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+                    {searchResults.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleApplySearchResult(item)}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 hover:text-emerald-800 border-b border-slate-100 last:border-b-0 transition-colors flex items-start space-x-2"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <span className="truncate">{item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Điểm xuất phát */}
@@ -377,7 +511,7 @@ export const CreateTrip: React.FC = () => {
               {/* Danh sách địa điểm gợi ý nhanh */}
               <div>
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  Chọn nhanh địa phương:
+                  Chọn nhanh bến xe & tỉnh thành:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {POPULAR_LOCATIONS.map((loc) => (
@@ -404,42 +538,95 @@ export const CreateTrip: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. Thời gian khởi hành */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-3">
-              <label className="block text-sm font-bold text-slate-900 flex items-center">
+            {/* 3. Thời gian khởi hành & Thời gian kết thúc chuyến */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center mb-1">
                 <Calendar className="w-4 h-4 mr-2 text-emerald-600" />
-                Thời gian khởi hành
-              </label>
+                Thời gian hành trình
+              </h2>
 
-              <input
-                type="datetime-local"
-                value={departureTime}
-                onChange={(e) => setDepartureTime(e.target.value)}
-                required
-                className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 font-medium ${
-                  isDepartureValid()
-                    ? 'border-slate-300 focus:ring-emerald-500'
-                    : 'border-rose-400 bg-rose-50/50 text-rose-900 focus:ring-rose-500'
-                }`}
-              />
+              {/* Giờ khởi hành */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center">
+                  <Clock className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                  Thời gian khởi hành (trước ít nhất 24 giờ):
+                </label>
+                <input
+                  type="datetime-local"
+                  value={departureTime}
+                  onChange={(e) => setDepartureTime(e.target.value)}
+                  required
+                  className={`w-full px-3 py-2 rounded-xl border text-sm font-medium focus:outline-none focus:ring-2 ${
+                    isDepartureValid()
+                      ? 'border-slate-300 focus:ring-emerald-500'
+                      : 'border-rose-400 bg-rose-50/50 text-rose-900 focus:ring-rose-500'
+                  }`}
+                />
+                {!isDepartureValid() && (
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1">
+                    * Chuyến xe phải được đăng trước thời gian khởi hành ít nhất 24 giờ.
+                  </p>
+                )}
+              </div>
 
-              {!isDepartureValid() ? (
-                <p className="text-xs text-rose-600 font-semibold flex items-center">
-                  <AlertCircle className="w-3.5 h-3.5 mr-1" />
-                  Quy định DR-01: Chuyến xe phải được đăng trước ít nhất 24 giờ.
+              {/* Giờ kết thúc dự kiến (ETA) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center">
+                    <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                    Thời gian kết thúc chuyến dự kiến:
+                  </label>
+                  {isEtaManual && (
+                    <button
+                      type="button"
+                      onClick={handleResetEtaToMinimum}
+                      className="text-[11px] text-emerald-600 hover:underline flex items-center"
+                    >
+                      <RotateCcw className="w-3 h-3 mr-1" />
+                      Gợi ý tự động
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="datetime-local"
+                  value={etaTime}
+                  onChange={(e) => {
+                    setEtaTime(e.target.value);
+                    setIsEtaManual(true);
+                  }}
+                  required
+                  className={`w-full px-3 py-2 rounded-xl border text-sm font-medium focus:outline-none focus:ring-2 ${
+                    isEtaValid()
+                      ? 'border-slate-300 focus:ring-emerald-500'
+                      : 'border-rose-400 bg-rose-50/50 text-rose-900 focus:ring-rose-500'
+                  }`}
+                />
+                {!isEtaValid() ? (
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1">
+                    * Thời gian kết thúc phải lớn hơn thời gian khởi hành cộng thời gian chạy xe tối thiểu.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Tài xế có thể nới dài thời gian kết thúc để dự phòng nghỉ chân hoặc trả khách đường dài.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-xs text-emerald-800 space-y-1">
+                <div className="flex items-center font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600 flex-shrink-0" />
+                  Quy định chống trùng lịch GoX:
+                </div>
+                <p className="text-[11px] leading-relaxed text-emerald-700">
+                  Hệ thống tự động bảo lưu 1 giờ đệm nghỉ ngơi giữa 2 chuyến xe liên tiếp của bạn và xe của bạn.
                 </p>
-              ) : (
-                <p className="text-xs text-emerald-700 font-medium flex items-center">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                  Thời gian hợp lệ (cách hiện tại trên 24 giờ).
-                </p>
-              )}
+              </div>
             </div>
 
             {/* Nút bấm Tạo chuyến */}
             <button
               type="submit"
-              disabled={submitting || !isDepartureValid() || calculatingRoute}
+              disabled={submitting || !isDepartureValid() || !isEtaValid() || calculatingRoute}
               className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center space-x-2"
             >
               {submitting ? (
@@ -459,39 +646,51 @@ export const CreateTrip: React.FC = () => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
+                  <div className="w-3 h-3 rounded-full bg-emerald-600 animate-pulse"></div>
                   <h3 className="font-bold text-slate-900 text-sm">
                     {originName} → {destName}
                   </h3>
                 </div>
                 {calculatingRoute && (
                   <span className="text-xs text-emerald-600 font-semibold animate-pulse">
-                    Đang tính toán tuyến đường...
+                    Đang tính toán tuyến đường OSRM...
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-xs text-slate-500 font-medium block">Khoảng cách dự kiến</span>
+                  <span className="text-xs text-slate-500 font-medium block">Khoảng cách đường bộ</span>
                   <span className="text-lg font-extrabold text-slate-900">
                     {routeResult ? `${routeResult.distance_km} km` : '—'}
                   </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Mạng lưới cao tốc & quốc lộ</span>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-xs text-slate-500 font-medium block">Thời gian di chuyển</span>
+                  <span className="text-xs text-slate-500 font-medium block">Thời gian chạy xe</span>
                   <span className="text-lg font-extrabold text-slate-900">
                     {routeResult
                       ? `${Math.floor(routeResult.duration_min / 60)}h ${routeResult.duration_min % 60}m`
                       : '—'}
                   </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Tốc độ tiêu chuẩn</span>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 col-span-2 sm:col-span-1">
                   <span className="text-xs text-slate-500 font-medium block">Giờ đến dự kiến (ETA)</span>
                   <span className="text-sm font-bold text-emerald-700">
-                    {calculateETAString() || '—'}
+                    {etaTime
+                      ? new Date(etaTime).toLocaleString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit',
+                        })
+                      : '—'}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+                    {isEtaManual ? '(Tài xế tùy chỉnh)' : '(Tự động từ lộ trình)'}
                   </span>
                 </div>
               </div>
@@ -502,10 +701,10 @@ export const CreateTrip: React.FC = () => {
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700 flex items-center">
                   <MapPin className="w-4 h-4 mr-1 text-emerald-600" />
-                  Bản đồ lộ trình OpenStreetMap (OpenRouteService)
+                  Bản đồ lộ trình OpenStreetMap (Định tuyến đường bộ thực tế)
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  Đang chọn: <strong className={mapPickMode === 'origin' ? 'text-emerald-600' : 'text-rose-600'}>
+                  Đang click chọn: <strong className={mapPickMode === 'origin' ? 'text-emerald-600' : 'text-rose-600'}>
                     {mapPickMode === 'origin' ? 'Điểm xuất phát (Xanh)' : 'Điểm đến (Đỏ)'}
                   </strong>
                 </span>
@@ -516,13 +715,15 @@ export const CreateTrip: React.FC = () => {
                 destination={{ lat: destLat, lng: destLng, label: destName }}
                 polylineCoordinates={routeResult?.coordinates}
                 onSelectPoint={handleMapClick}
-                height="450px"
+                height="460px"
+                distanceKm={routeResult?.distance_km}
+                durationMin={routeResult?.duration_min}
               />
 
               <div className="mt-3 flex items-center text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl">
                 <Info className="w-4 h-4 mr-2 text-slate-400 flex-shrink-0" />
                 <span>
-                  Bạn có thể click trực tiếp lên bất kỳ vị trí nào trên bản đồ để chọn tọa độ điểm xuất phát hoặc điểm đến chính xác.
+                  Lộ trình được vẽ tự động bám theo hệ thống đường quốc lộ và cao tốc thực tế tại Việt Nam. Bạn có thể click trực tiếp lên bất kỳ điểm nào trên bản đồ để chọn tọa độ chính xác.
                 </span>
               </div>
             </div>

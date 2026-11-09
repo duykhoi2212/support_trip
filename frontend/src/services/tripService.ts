@@ -22,6 +22,7 @@ export const tripService = {
     dest_lat: number;
     dest_lng: number;
     departure_time: string;
+    eta?: string;
   }): Promise<Trip> {
     const res = await api.post<ApiSuccessResponse<Trip>>('/trips', data);
     return res.data.data;
@@ -46,3 +47,4 @@ export const tripService = {
     return res.data.data;
   },
 };
+

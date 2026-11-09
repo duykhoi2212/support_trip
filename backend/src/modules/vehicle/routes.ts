@@ -15,3 +15,4 @@ vehicleRouter.get('/:id', VehicleController.getById);
 vehicleRouter.patch('/:id', VehicleController.update);
 vehicleRouter.post('/:id/deactivate', VehicleController.deactivate);
 vehicleRouter.post('/:id/activate', VehicleController.activate);
+

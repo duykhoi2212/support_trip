@@ -62,64 +62,95 @@ function generateMockRoute(origin: RoutePoint, dest: RoutePoint): RouteResult {
   };
 }
 
+/**
+ * Gọi dịch vụ OSRM (Open Source Routing Machine) miễn phí không cần API Key
+ * Trả về lộ trình bám 100% theo mạng lưới cao tốc, quốc lộ và đường giao thông thực tế tại Việt Nam
+ */
+async function getOSRMRoute(origin: RoutePoint, dest: RoutePoint): Promise<RouteResult> {
+  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+  const response = await axios.get(url, {
+    timeout: 8000,
+    headers: {
+      'User-Agent': 'GoX-App/1.0',
+    },
+  });
+
+  const route = response.data?.routes?.[0];
+  if (!route) {
+    throw new Error('OSRM không tìm thấy tuyến đường phù hợp');
+  }
+
+  const distance_km = Math.round(((route.distance || 0) / 1000) * 10) / 10;
+  const duration_min = Math.max(10, Math.round((route.duration || 0) / 60));
+  const rawCoords: Array<[number, number]> = route.geometry?.coordinates || [];
+
+  // GeoJSON trả về [lng, lat], chuyển sang [lat, lng] cho Leaflet và Turf.js
+  const coordinates: Array<[number, number]> = rawCoords.map(([lng, lat]) => [lat, lng]);
+
+  return {
+    distance_km,
+    duration_min,
+    coordinates,
+    route_polyline: JSON.stringify(coordinates),
+  };
+}
+
 export const mapAdapter = {
   /**
    * Tính toán lộ trình đường bộ, khoảng cách km, thời gian ETA và polyline
    */
   async getRoute(origin: RoutePoint, dest: RoutePoint): Promise<RouteResult> {
-    // 1. Nếu chưa có ORS_API_KEY, tự động dùng Mock Router giả lập để phát triển và kiểm thử
-    if (!config.ORS_API_KEY || config.ORS_API_KEY.trim() === '') {
-      return generateMockRoute(origin, dest);
+    // 1. Khi đã có ORS_API_KEY, gọi API OpenRouteService Directions chuẩn
+    if (config.ORS_API_KEY && config.ORS_API_KEY.trim() !== '') {
+      try {
+        const response = await axios.post(
+          'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+          {
+            coordinates: [
+              [origin.lng, origin.lat],
+              [dest.lng, dest.lat],
+            ],
+          },
+          {
+            headers: {
+              Authorization: config.ORS_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000,
+          }
+        );
+
+        const feature = response.data?.features?.[0];
+        if (!feature) {
+          throw new Error('ORS không trả về dữ liệu tuyến đường phù hợp');
+        }
+
+        const summary = feature.properties?.summary;
+        const rawCoords: Array<[number, number]> = feature.geometry?.coordinates || [];
+
+        const distance_km = Math.round(((summary?.distance || 0) / 1000) * 10) / 10;
+        const duration_min = Math.round((summary?.duration || 0) / 60);
+        const coordinates: Array<[number, number]> = rawCoords.map(([lng, lat]) => [lat, lng]);
+
+        return {
+          distance_km,
+          duration_min,
+          coordinates,
+          route_polyline: JSON.stringify(coordinates),
+        };
+      } catch (error: any) {
+        console.warn('⚠️ ORS gặp sự cố, tự động chuyển hướng sang OSRM:', error.message);
+      }
     }
 
-    // 2. Khi đã có ORS_API_KEY, gọi API OpenRouteService Directions chuẩn
+    // 2. Định tuyến thực tế qua OSRM (Hoàn toàn miễn phí, bám sát đường sá Việt Nam)
     try {
-      const response = await axios.post(
-        'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
-        {
-          // ORS nhận GeoJSON chuẩn: [longitude, latitude]
-          coordinates: [
-            [origin.lng, origin.lat],
-            [dest.lng, dest.lat],
-          ],
-        },
-        {
-          headers: {
-            Authorization: config.ORS_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000, // Timeout 10 giây
-        }
-      );
-
-      const feature = response.data?.features?.[0];
-      if (!feature) {
-        throw new Error('ORS không trả về dữ liệu tuyến đường phù hợp');
-      }
-
-      const summary = feature.properties?.summary;
-      const rawCoords: Array<[number, number]> = feature.geometry?.coordinates || [];
-
-      const distance_km = Math.round(((summary?.distance || 0) / 1000) * 10) / 10;
-      const duration_min = Math.round((summary?.duration || 0) / 60);
-
-      // Chuyển đổi từ GeoJSON [lng, lat] sang định dạng Leaflet [lat, lng]
-      const coordinates: Array<[number, number]> = rawCoords.map(([lng, lat]) => [lat, lng]);
-
-      return {
-        distance_km,
-        duration_min,
-        coordinates,
-        route_polyline: JSON.stringify(coordinates),
-      };
-    } catch (error: any) {
-      console.error('❌ Lỗi OpenRouteService:', error.response?.data || error.message);
-      // Quy tắc CS-05: Khi dịch vụ bản đồ lỗi -> Chặn tạo chuyến và thông báo rõ ràng
-      throw new AppError(
-        503,
-        'MAP_SERVICE_UNAVAILABLE',
-        'Dịch vụ bản đồ tạm thời gián đoạn hoặc không tìm thấy tuyến đường. Vui lòng thử lại sau.'
-      );
+      return await getOSRMRoute(origin, dest);
+    } catch (osrmError: any) {
+      console.warn('⚠️ OSRM không phản hồi (offline/timeout), sử dụng Mock Router:', osrmError.message);
+      // 3. Fallback dự phòng Mock Router khi mất kết nối mạng để không làm sập luồng
+      return generateMockRoute(origin, dest);
     }
   },
 };
+

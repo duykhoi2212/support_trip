@@ -39,3 +39,4 @@ export const vehicleService = {
     return res.data.data;
   },
 };
+

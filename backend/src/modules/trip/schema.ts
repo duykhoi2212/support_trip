@@ -13,6 +13,10 @@ export const createTripSchema = z.object({
     (val) => !isNaN(Date.parse(val)),
     { message: 'Định dạng ngày giờ không hợp lệ' }
   ),
+  eta: z.string().optional().refine(
+    (val) => !val || !isNaN(Date.parse(val)),
+    { message: 'Định dạng ngày giờ kết thúc không hợp lệ' }
+  ),
 });
 
 export const cancelTripSchema = z.object({
@@ -31,3 +35,4 @@ export const searchTripsSchema = z.object({
   cargo_weight_kg: z.coerce.number().optional(),
   cargo_area_m2: z.coerce.number().optional(),
 });
+

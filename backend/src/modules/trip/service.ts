@@ -51,29 +51,53 @@ export class TripService {
       { lat: input.dest_lat, lng: input.dest_lng }
     );
 
-    // Tính thời gian dự kiến đến nơi: ETA = departure_time + duration
-    const eta = new Date(depTime.getTime() + route.duration_min * 60 * 1000);
+    // Tính thời gian dự kiến đến nơi tối thiểu: minEta = departure_time + duration
+    const minEta = new Date(depTime.getTime() + route.duration_min * 60 * 1000);
+    let finalEta = minEta;
 
-    // 4. Chống chồng lịch xe không đệm: không được giao nhau trong [departure_time, ETA]
+    if (input.eta) {
+      const userEta = new Date(input.eta);
+      if (userEta < minEta) {
+        throw new AppError(
+          400,
+          'INVALID_ETA',
+          `Thời gian kết thúc chuyến dự kiến (${userEta.toLocaleString('vi-VN')}) không thể sớm hơn thời gian chạy tối thiểu từ bản đồ (${minEta.toLocaleString('vi-VN')}).`
+        );
+      }
+      finalEta = userEta;
+    }
+
+    // 4. Chống chồng lịch xe VÀ tài xế kèm 1 giờ đệm nghỉ ngơi (Buffer 60 phút)
+    const BUFFER_MS = 60 * 60 * 1000;
+    const searchDep = new Date(depTime.getTime() - BUFFER_MS);
+    const searchEta = new Date(finalEta.getTime() + BUFFER_MS);
+
     const conflictTrip = await prisma.trip.findFirst({
       where: {
-        vehicle_id: vehicleId,
         status: {
           in: [trip_status.OPEN, trip_status.CLOSED, trip_status.IN_PROGRESS],
         },
-        departure_time: { lt: eta },
-        eta: { gt: depTime },
+        OR: [
+          { driver_id: driverId },
+          { vehicle_id: vehicleId },
+        ],
+        departure_time: { lt: searchEta },
+        eta: { gt: searchDep },
+      },
+      include: {
+        vehicle: true,
       },
     });
 
     if (conflictTrip) {
+      const isSameDriver = conflictTrip.driver_id === driverId;
       const startFormatted = conflictTrip.departure_time.toLocaleString('vi-VN');
       const etaFormatted = conflictTrip.eta.toLocaleString('vi-VN');
-      throw new AppError(
-        409,
-        'SCHEDULE_CONFLICT',
-        `Phương tiện đã có lịch trình trong khung giờ này (Chuyến ${conflictTrip.code}: từ ${startFormatted} đến ${etaFormatted}). Vui lòng chọn thời gian khác.`
-      );
+      const reason = isSameDriver
+        ? `Bạn đã có lịch trình cho chuyến xe ${conflictTrip.code} từ ${startFormatted} đến ${etaFormatted} (kèm 1 giờ đệm nghỉ ngơi). Không thể tạo chuyến trùng thời gian.`
+        : `Phương tiện (${conflictTrip.vehicle.plate_number}) đã có lịch trình cho chuyến ${conflictTrip.code} từ ${startFormatted} đến ${etaFormatted}. Vui lòng chọn thời gian hoặc xe khác.`;
+
+      throw new AppError(409, 'SCHEDULE_CONFLICT', reason);
     }
 
     // 5. Sinh mã chuyến duy nhất (TRIP-XXXXXX)
@@ -98,7 +122,7 @@ export class TripService {
         dest_lat: input.dest_lat,
         dest_lng: input.dest_lng,
         departure_time: depTime,
-        eta,
+        eta: finalEta,
         distance_km: route.distance_km,
         duration_min: route.duration_min,
         route_polyline: route.route_polyline,
@@ -306,3 +330,4 @@ export class TripService {
     });
   }
 }
+

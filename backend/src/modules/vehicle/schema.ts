@@ -30,3 +30,4 @@ export const updateVehicleSchema = z.object({
   brand_model: z.string().max(100, 'Hãng xe không được vượt quá 100 ký tự').optional(),
   color: z.string().max(30, 'Màu xe không được vượt quá 30 ký tự').optional(),
 });
+

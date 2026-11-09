@@ -15,3 +15,4 @@ tripRouter.post('/:id/cancel', authenticateToken, requireRole([user_role.DRIVER]
 
 // Chi tiết chuyến xe (Đặt sau cùng để tránh nuốt các route tĩnh)
 tripRouter.get('/:id', TripController.getById);
+

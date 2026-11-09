@@ -138,6 +138,26 @@ describe('Kiểm thử Module Phương tiện & Chuyến xe (DR-04, DR-01, DR-05
     ).rejects.toThrow('đã có lịch trình');
   });
 
+  it('5b. DR-01: Cho phép nhập thời gian kết thúc chuyến dự kiến (eta) hợp lệ, chặn khi eta < thời gian chạy tối thiểu', async () => {
+    const depTime = new Date(Date.now() + 60 * 60 * 1000 * 24).toISOString(); // +24h
+    // ETA sớm hơn giờ khởi hành -> Lỗi
+    const invalidEta = new Date(Date.now() + 60 * 60 * 1000 * 20).toISOString();
+
+    await expect(
+      TripService.createTrip(driverId, {
+        vehicle_id: vehicleId.toString(),
+        origin_name: 'Test Stage 3 - Hà Nội',
+        origin_lat: 21.0285,
+        origin_lng: 105.7782,
+        dest_name: 'Test Stage 3 - Nam Định',
+        dest_lat: 20.4200,
+        dest_lng: 106.1683,
+        departure_time: depTime,
+        eta: invalidEta,
+      })
+    ).rejects.toThrow('không thể sớm hơn thời gian chạy tối thiểu');
+  });
+
   it('6. DR-04: Chặn ngừng sử dụng xe (deactivate) khi xe đang có chuyến OPEN', async () => {
     await expect(VehicleService.deactivateVehicle(driverId, vehicleId)).rejects.toThrow(
       'Không thể ngừng sử dụng phương tiện vì đang gắn với chuyến xe'
