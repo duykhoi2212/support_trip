@@ -101,9 +101,17 @@ export interface Trip {
 // -------------------------------------------------------------
 // BẢN ĐỒ & TUYẾN ĐƯỜNG (MAP & ROUTE)
 // -------------------------------------------------------------
+export interface RouteStep {
+  name: string;
+  distance_km: number;
+  duration_min: number;
+}
+
 export interface RouteResult {
   distance_km: number;
   duration_min: number;
   coordinates: Array<[number, number]>;
   route_polyline: string;
+  major_roads?: string[];
+  steps?: RouteStep[];
 }

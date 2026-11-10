@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Layers } from 'lucide-react';
 
 interface RoutePoint {
   lat: number;
@@ -18,6 +18,7 @@ interface RouteMapProps {
   className?: string;
   distanceKm?: number | null;
   durationMin?: number | null;
+  majorRoads?: string[];
 }
 
 // Marker biểu tượng Điểm xuất phát (Màu xanh Emerald nổi bật kèm hiệu ứng tỏa sáng)
@@ -58,15 +59,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   destination,
   polylineCoordinates,
   onSelectPoint,
-  height = '460px',
+  height = '480px',
   className = '',
   distanceKm,
   durationMin,
+  majorRoads = [],
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+
+  // Chế độ bản đồ: 'esri' (Mặc định - chi tiết như Google Maps) hoặc 'osm' (OpenStreetMap)
+  const [mapType, setMapType] = useState<'esri' | 'osm'>('esri');
 
   // Khởi tạo bản đồ Leaflet
   useEffect(() => {
@@ -80,19 +85,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         zoomControl: true,
       });
 
-      // Sử dụng CartoDB Voyager Tile Layer: Hiển thị cực kỳ rõ nét tên đường, cao tốc, tỉnh thành Việt Nam
-      const primaryTile = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      // Lớp Esri World Street Map: 100% Miễn phí, không API key, không watermark, chi tiết đường sá Việt Nam
+      const esriTile = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-          subdomains: 'abcd',
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, TomTom',
           maxZoom: 19,
         }
       );
 
-      primaryTile.addTo(map);
-      tileLayerRef.current = primaryTile;
+      esriTile.addTo(map);
+      tileLayerRef.current = esriTile;
 
       const layerGroup = L.layerGroup().addTo(map);
       layerGroupRef.current = layerGroup;
@@ -113,7 +116,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         map.invalidateSize();
       }, 250);
 
-      // Tự động điều chỉnh kích thước nếu container thay đổi size (ví dụ mở/đóng responsive)
+      // Tự động điều chỉnh kích thước nếu container thay đổi size
       const resizeObserver = new ResizeObserver(() => {
         map.invalidateSize();
       });
@@ -127,6 +130,35 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       };
     }
   }, []);
+
+  // Thay đổi Tile Layer khi người dùng bấm nút đổi loại bản đồ
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+
+    let newTile: L.TileLayer;
+    if (mapType === 'esri') {
+      newTile = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, TomTom',
+          maxZoom: 19,
+        }
+      );
+    } else {
+      newTile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+      });
+    }
+
+    newTile.addTo(map);
+    tileLayerRef.current = newTile;
+  }, [mapType]);
 
   // Cập nhật các Marker và Tuyến Polyline khi dữ liệu thay đổi
   useEffect(() => {
@@ -144,12 +176,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         icon: createOriginIcon(),
         title: 'Điểm xuất phát',
       }).bindPopup(`
-        <div style="font-family: inherit; font-size: 13px; line-height: 1.5;">
+        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 180px;">
           <strong style="color: #059669; display: flex; align-items: center; margin-bottom: 4px;">
             <span style="display: inline-block; width: 8px; height: 8px; background: #059669; border-radius: 50%; margin-right: 6px;"></span>
             Điểm xuất phát
           </strong>
-          <div style="color: #334155;">${origin.label || `Tọa độ: ${origin.lat}, ${origin.lng}`}</div>
+          <div style="color: #1e293b; font-weight: 600;">${origin.label || `Tọa độ: ${origin.lat}, ${origin.lng}`}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Tọa độ: ${origin.lat}, ${origin.lng}</div>
         </div>
       `);
       layerGroup.addLayer(originMarker);
@@ -162,12 +195,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         icon: createDestIcon(),
         title: 'Điểm đến',
       }).bindPopup(`
-        <div style="font-family: inherit; font-size: 13px; line-height: 1.5;">
+        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 180px;">
           <strong style="color: #e11d48; display: flex; align-items: center; margin-bottom: 4px;">
             <span style="display: inline-block; width: 8px; height: 8px; background: #e11d48; border-radius: 50%; margin-right: 6px;"></span>
             Điểm đến
           </strong>
-          <div style="color: #334155;">${destination.label || `Tọa độ: ${destination.lat}, ${destination.lng}`}</div>
+          <div style="color: #1e293b; font-weight: 600;">${destination.label || `Tọa độ: ${destination.lat}, ${destination.lng}`}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Tọa độ: ${destination.lat}, ${destination.lng}</div>
         </div>
       `);
       layerGroup.addLayer(destMarker);
@@ -178,8 +212,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     if (polylineCoordinates && polylineCoordinates.length > 1) {
       // Viền bóng dưới tạo chiều sâu và độ tương phản cao với nền đường phố
       const polylineShadow = L.polyline(polylineCoordinates, {
-        color: '#047857',
-        weight: 7,
+        color: '#064e3b',
+        weight: 8,
         opacity: 0.45,
         lineCap: 'round',
         lineJoin: 'round',
@@ -194,10 +228,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         lineCap: 'round',
         lineJoin: 'round',
       }).bindPopup(`
-        <div style="font-family: inherit; font-size: 13px; line-height: 1.5;">
-          <strong style="color: #059669;">Lộ trình đường bộ GoX</strong>
-          ${distanceKm ? `<div>Quãng đường: <b>${distanceKm} km</b></div>` : ''}
-          ${durationMin ? `<div>Thời gian dự kiến: <b>${Math.floor(durationMin / 60)}h ${durationMin % 60}m</b></div>` : ''}
+        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 200px;">
+          <strong style="color: #059669; font-size: 14px;">Lộ trình di chuyển GoX</strong>
+          ${distanceKm ? `<div style="margin-top: 4px;">Quãng đường: <b style="color: #0f172a;">${distanceKm} km</b></div>` : ''}
+          ${durationMin ? `<div>Thời gian dự kiến: <b style="color: #0f172a;">${Math.floor(durationMin / 60)}h ${Math.round(durationMin % 60)}m</b></div>` : ''}
+          ${majorRoads.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 4px; border-top: 1px solid #e2e8f0; pt: 4px;">Trục đường: ${majorRoads.slice(0, 3).join(' → ')}...</div>` : ''}
         </div>
       `);
       layerGroup.addLayer(polylineMain);
@@ -207,9 +242,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // Tự động căn chỉnh bao trọn toàn bộ lộ trình
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     }
-  }, [origin, destination, polylineCoordinates, distanceKm, durationMin]);
+  }, [origin, destination, polylineCoordinates, distanceKm, durationMin, majorRoads]);
 
   const handleFitBounds = () => {
     const map = mapInstanceRef.current;
@@ -223,7 +258,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
 
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     }
   };
 
@@ -232,8 +267,20 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       {/* Container Leaflet */}
       <div ref={mapContainerRef} style={{ height, width: '100%' }} className="z-0 bg-slate-100" />
 
-      {/* Nút thao tác góc trên bên phải: Xem toàn cảnh & Báo click */}
+      {/* Thanh điều khiển góc trên bên phải */}
       <div className="absolute top-3 right-3 z-[400] flex items-center space-x-2">
+        {/* Nút chuyển đổi loại bản đồ */}
+        <button
+          type="button"
+          onClick={() => setMapType(mapType === 'esri' ? 'osm' : 'esri')}
+          title="Chuyển chế độ hiển thị bản đồ"
+          className="bg-white/95 hover:bg-white text-slate-700 hover:text-emerald-700 px-3 py-1.5 rounded-xl shadow-md border border-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition-all backdrop-blur-sm"
+        >
+          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+          <span>{mapType === 'esri' ? 'Bản đồ Esri Chi tiết' : 'Bản đồ OpenStreetMap'}</span>
+        </button>
+
+        {/* Nút xem toàn cảnh */}
         <button
           type="button"
           onClick={handleFitBounds}
@@ -247,14 +294,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         {onSelectPoint && (
           <div className="bg-emerald-600/90 text-white px-3 py-1.5 rounded-xl shadow-md text-xs font-semibold flex items-center space-x-1.5 backdrop-blur-sm">
             <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-            <span>Click bản đồ để chọn tọa độ</span>
+            <span>Click chọn tọa độ</span>
           </div>
         )}
       </div>
 
       {/* Thông tin nguồn bản đồ góc dưới */}
-      <div className="absolute bottom-1 left-2 z-[400] bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-slate-500 font-medium">
-        Bản đồ giao thông CartoDB & OpenStreetMap (Định tuyến OSRM)
+      <div className="absolute bottom-1 left-2 z-[400] bg-white/85 backdrop-blur-sm px-2.5 py-0.5 rounded text-[10px] text-slate-600 font-medium border border-slate-200 shadow-sm">
+        {mapType === 'esri' ? 'Bản đồ đường sá Esri World Street Map' : 'Bản đồ OpenStreetMap'} • Định tuyến OSRM
       </div>
     </div>
   );

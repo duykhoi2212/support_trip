@@ -7,12 +7,20 @@ export interface RoutePoint {
   lng: number;
 }
 
+export interface RouteStep {
+  name: string;
+  distance_km: number;
+  duration_min: number;
+}
+
 export interface RouteResult {
   distance_km: number;
   duration_min: number;
   // Danh sách tọa độ [latitude, longitude] để phù hợp với Leaflet & Turf.js
   coordinates: Array<[number, number]>;
   route_polyline: string; // JSON string chứa danh sách [lat, lng]
+  major_roads?: string[]; // Danh sách các trục đường cao tốc / quốc lộ chính đi qua
+  steps?: RouteStep[]; // Danh sách các chặng đường chi tiết
 }
 
 /**
@@ -59,6 +67,8 @@ function generateMockRoute(origin: RoutePoint, dest: RoutePoint): RouteResult {
     duration_min,
     coordinates,
     route_polyline: JSON.stringify(coordinates),
+    major_roads: ['Đường bộ liên tỉnh'],
+    steps: [],
   };
 }
 
@@ -67,9 +77,9 @@ function generateMockRoute(origin: RoutePoint, dest: RoutePoint): RouteResult {
  * Trả về lộ trình bám 100% theo mạng lưới cao tốc, quốc lộ và đường giao thông thực tế tại Việt Nam
  */
 async function getOSRMRoute(origin: RoutePoint, dest: RoutePoint): Promise<RouteResult> {
-  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=true`;
   const response = await axios.get(url, {
-    timeout: 8000,
+    timeout: 10000,
     headers: {
       'User-Agent': 'GoX-App/1.0',
     },
@@ -87,11 +97,34 @@ async function getOSRMRoute(origin: RoutePoint, dest: RoutePoint): Promise<Route
   // GeoJSON trả về [lng, lat], chuyển sang [lat, lng] cho Leaflet và Turf.js
   const coordinates: Array<[number, number]> = rawCoords.map(([lng, lat]) => [lat, lng]);
 
+  // Trích xuất các trục đường cao tốc / quốc lộ chính từ steps
+  const rawSteps = route.legs?.[0]?.steps || [];
+  const major_roads: string[] = [];
+  const seenRoads = new Set<string>();
+
+  for (const s of rawSteps) {
+    const roadName = s.name?.trim();
+    if (roadName && !seenRoads.has(roadName)) {
+      seenRoads.add(roadName);
+      major_roads.push(roadName);
+    }
+  }
+
+  const steps: RouteStep[] = rawSteps
+    .filter((s: any) => s.name && s.distance > 200)
+    .map((s: any) => ({
+      name: s.name,
+      distance_km: Math.round((s.distance / 1000) * 10) / 10,
+      duration_min: Math.round((s.duration / 60) * 10) / 10,
+    }));
+
   return {
     distance_km,
     duration_min,
     coordinates,
     route_polyline: JSON.stringify(coordinates),
+    major_roads,
+    steps,
   };
 }
 

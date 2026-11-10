@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Car,
@@ -13,7 +13,9 @@ import {
   Sparkles,
   ChevronRight,
   Search,
-  RotateCcw
+  RotateCcw,
+  Milestone,
+  Route as RouteIcon
 } from 'lucide-react';
 import { vehicleService } from '../../services/vehicleService';
 import { tripService } from '../../services/tripService';
@@ -33,7 +35,7 @@ const POPULAR_LOCATIONS = [
   { name: 'TP. Ninh Bình', lat: 20.2506, lng: 105.9745 },
   { name: 'TP. Thanh Hóa', lat: 19.8067, lng: 105.7852 },
   { name: 'TP. Vinh, Nghệ An', lat: 18.6734, lng: 105.6813 },
-  { name: 'TP. Đà Nẵng', lat: 16.0544, lng: 108.2022 },
+  { name: 'Cầu Rồng, Đà Nẵng', lat: 16.0612, lng: 108.2279 },
   { name: 'Bến xe Miền Đông, TP.HCM', lat: 10.8142, lng: 106.7118 },
   { name: 'Sân bay Tân Sơn Nhất, TP.HCM', lat: 10.8185, lng: 106.6588 },
 ];
@@ -59,10 +61,14 @@ export const CreateTrip: React.FC = () => {
   // Chế độ click bản đồ: 'origin' hoặc 'destination'
   const [mapPickMode, setMapPickMode] = useState<'origin' | 'destination'>('origin');
 
-  // Ô tìm kiếm địa điểm thông minh (Geocoding)
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
-  const [searching, setSearching] = useState<boolean>(false);
+  // Gợi ý tìm kiếm tự động khi gõ trực tiếp vào ô input (Autocomplete)
+  const [originSuggestions, setOriginSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [destSuggestions, setDestSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [searchingOrigin, setSearchingOrigin] = useState<boolean>(false);
+  const [searchingDest, setSearchingDest] = useState<boolean>(false);
+
+  const originDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const destDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper format ngày giờ cho input type="datetime-local"
   const formatDateTimeLocal = (d: Date) => {
@@ -145,6 +151,87 @@ export const CreateTrip: React.FC = () => {
     }
   }, [departureTime]);
 
+  // Xử lý tìm kiếm gợi ý địa chỉ khi gõ ô Điểm xuất phát (Debounce 350ms)
+  const handleOriginInputChange = (val: string) => {
+    setOriginName(val);
+
+    if (originDebounceRef.current) clearTimeout(originDebounceRef.current);
+    if (!val.trim() || val.trim().length < 2) {
+      setOriginSuggestions([]);
+      return;
+    }
+
+    originDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearchingOrigin(true);
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
+        const data = await res.json();
+        const items = (data.features || []).map((f: any) => {
+          const p = f.properties || {};
+          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
+          return {
+            name: labelParts.join(', ') || p.name || val,
+            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
+            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
+          };
+        });
+        setOriginSuggestions(items);
+      } catch (err) {
+        console.warn('Lỗi tìm địa điểm:', err);
+      } finally {
+        setSearchingOrigin(false);
+      }
+    }, 350);
+  };
+
+  // Xử lý tìm kiếm gợi ý địa chỉ khi gõ ô Điểm đến (Debounce 350ms)
+  const handleDestInputChange = (val: string) => {
+    setDestName(val);
+
+    if (destDebounceRef.current) clearTimeout(destDebounceRef.current);
+    if (!val.trim() || val.trim().length < 2) {
+      setDestSuggestions([]);
+      return;
+    }
+
+    destDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearchingDest(true);
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
+        const data = await res.json();
+        const items = (data.features || []).map((f: any) => {
+          const p = f.properties || {};
+          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
+          return {
+            name: labelParts.join(', ') || p.name || val,
+            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
+            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
+          };
+        });
+        setDestSuggestions(items);
+      } catch (err) {
+        console.warn('Lỗi tìm địa điểm:', err);
+      } finally {
+        setSearchingDest(false);
+      }
+    }, 350);
+  };
+
+  // Khi chọn một gợi ý địa chỉ
+  const handleSelectOriginSuggestion = (item: { name: string; lat: number; lng: number }) => {
+    setOriginName(item.name);
+    setOriginLat(item.lat);
+    setOriginLng(item.lng);
+    setOriginSuggestions([]);
+  };
+
+  const handleSelectDestSuggestion = (item: { name: string; lat: number; lng: number }) => {
+    setDestName(item.name);
+    setDestLat(item.lat);
+    setDestLng(item.lng);
+    setDestSuggestions([]);
+  };
+
   // Xử lý khi click vào bản đồ
   const handleMapClick = (point: { lat: number; lng: number }) => {
     if (mapPickMode === 'origin') {
@@ -158,48 +245,6 @@ export const CreateTrip: React.FC = () => {
     }
   };
 
-  // Tìm kiếm địa điểm trực tuyến qua OpenStreetMap Photon API
-  const handleSearchLocation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
-
-    try {
-      setSearching(true);
-      const res = await fetch(
-        `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery.trim())}&limit=5`
-      );
-      const data = await res.json();
-      const items = (data.features || []).map((f: any) => {
-        const p = f.properties || {};
-        const labelParts = [p.name, p.district, p.city, p.state].filter(Boolean);
-        return {
-          name: labelParts.join(', ') || p.name || 'Địa điểm không tên',
-          lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
-          lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
-        };
-      });
-      setSearchResults(items);
-    } catch (err) {
-      console.warn('Lỗi tìm kiếm địa điểm:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const handleApplySearchResult = (item: { name: string; lat: number; lng: number }) => {
-    if (mapPickMode === 'origin') {
-      setOriginName(item.name);
-      setOriginLat(item.lat);
-      setOriginLng(item.lng);
-    } else {
-      setDestName(item.name);
-      setDestLat(item.lat);
-      setDestLng(item.lng);
-    }
-    setSearchResults([]);
-    setSearchQuery('');
-  };
-
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
   // Kiểm tra thời gian khởi hành >= 24h
@@ -207,7 +252,7 @@ export const CreateTrip: React.FC = () => {
     const depDate = new Date(departureTime).getTime();
     const now = Date.now();
     const diffHours = (depDate - now) / (1000 * 60 * 60);
-    return diffHours >= 23.95; // Cho phép sai số vài giây
+    return diffHours >= 23.95;
   };
 
   // Kiểm tra thời gian kết thúc (ETA) phải sau thời gian khởi hành + thời gian chạy xe
@@ -301,7 +346,7 @@ export const CreateTrip: React.FC = () => {
             Tạo chuyến xe đường dài
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Thiết lập lộ trình thực tế, thời gian khởi hành và thời gian kết thúc chuyến không trùng lịch.
+            Định tuyến đường bộ chính xác, tra cứu tự động địa chỉ và tối ưu hóa tuyến đường chuyến xe.
           </p>
         </div>
 
@@ -390,14 +435,14 @@ export const CreateTrip: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Điểm xuất phát & Điểm đến */}
+            {/* 2. Điểm xuất phát & Điểm đến với tính năng Gõ gợi ý tự động (Autocomplete) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-900 flex items-center mb-1">
                 <Navigation className="w-4 h-4 mr-2 text-emerald-600" />
                 Lộ trình di chuyển
               </h2>
 
-              {/* Chế độ chọn điểm xuất phát / điểm đến */}
+              {/* Chế độ chọn điểm xuất phát / điểm đến trên Map */}
               <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
                 <button
                   type="button"
@@ -408,7 +453,7 @@ export const CreateTrip: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Đang chọn Điểm xuất phát
+                  Click chọn Điểm xuất phát (Xanh)
                 </button>
                 <button
                   type="button"
@@ -419,93 +464,106 @@ export const CreateTrip: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Đang chọn Điểm đến
+                  Click chọn Điểm đến (Đỏ)
                 </button>
               </div>
 
-              {/* Ô tìm kiếm địa chỉ nhanh trên OpenStreetMap */}
+              {/* Ô nhập Điểm xuất phát kèm Autocomplete */}
               <div className="relative">
-                <div className="flex space-x-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSearchLocation(e);
-                        }
-                      }}
-                      placeholder={`Tìm địa chỉ cho ${mapPickMode === 'origin' ? 'Điểm xuất phát' : 'Điểm đến'}...`}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSearchLocation}
-                    disabled={searching}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50"
-                  >
-                    {searching ? 'Đang tìm...' : 'Tìm'}
-                  </button>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 mr-2"></span>
+                    Điểm xuất phát:
+                  </span>
+                  {searchingOrigin && (
+                    <span className="text-[10px] text-emerald-600 font-medium animate-pulse">
+                      Đang tìm kiếm...
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={originName}
+                    onChange={(e) => handleOriginInputChange(e.target.value)}
+                    placeholder="Gõ tên bến xe, địa điểm, thành phố..."
+                    required
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Tọa độ GPS: {originLat}, {originLng}
                 </div>
 
-                {/* Danh sách kết quả gợi ý địa chỉ */}
-                {searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
-                    {searchResults.map((item, idx) => (
+                {/* Danh sách gợi ý Điểm xuất phát */}
+                {originSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto">
+                    {originSuggestions.map((item, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => handleApplySearchResult(item)}
+                        onClick={() => handleSelectOriginSuggestion(item)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 hover:text-emerald-800 border-b border-slate-100 last:border-b-0 transition-colors flex items-start space-x-2"
                       >
                         <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        <span className="truncate">{item.name}</span>
+                        <div>
+                          <p className="font-semibold text-slate-900 leading-snug">{item.name}</p>
+                          <p className="text-[10px] text-slate-400">Tọa độ: {item.lat}, {item.lng}</p>
+                        </div>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Điểm xuất phát */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 mr-2"></span>
-                  Điểm xuất phát:
+              {/* Ô nhập Điểm đến kèm Autocomplete */}
+              <div className="relative">
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 mr-2"></span>
+                    Điểm đến:
+                  </span>
+                  {searchingDest && (
+                    <span className="text-[10px] text-rose-600 font-medium animate-pulse">
+                      Đang tìm kiếm...
+                    </span>
+                  )}
                 </label>
-                <input
-                  type="text"
-                  value={originName}
-                  onChange={(e) => setOriginName(e.target.value)}
-                  placeholder="Ví dụ: Bến xe Mỹ Đình, Hà Nội"
-                  required
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Tọa độ: {originLat}, {originLng}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={destName}
+                    onChange={(e) => handleDestInputChange(e.target.value)}
+                    placeholder="Ví dụ: Cầu rồng đà nẵng, Bến xe Miền Đông..."
+                    required
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
                 </div>
-              </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Tọa độ GPS: {destLat}, {destLng}
+                </div>
 
-              {/* Điểm đến */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 mr-2"></span>
-                  Điểm đến:
-                </label>
-                <input
-                  type="text"
-                  value={destName}
-                  onChange={(e) => setDestName(e.target.value)}
-                  placeholder="Ví dụ: Trung tâm TP. Nam Định"
-                  required
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Tọa độ: {destLat}, {destLng}
-                </div>
+                {/* Danh sách gợi ý Điểm đến */}
+                {destSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto">
+                    {destSuggestions.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectDestSuggestion(item)}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-rose-50 hover:text-rose-800 border-b border-slate-100 last:border-b-0 transition-colors flex items-start space-x-2"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-rose-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-slate-900 leading-snug">{item.name}</p>
+                          <p className="text-[10px] text-slate-400">Tọa độ: {item.lat}, {item.lng}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Danh sách địa điểm gợi ý nhanh */}
@@ -523,10 +581,12 @@ export const CreateTrip: React.FC = () => {
                           setOriginName(loc.name);
                           setOriginLat(loc.lat);
                           setOriginLng(loc.lng);
+                          setOriginSuggestions([]);
                         } else {
                           setDestName(loc.name);
                           setDestLat(loc.lat);
                           setDestLng(loc.lng);
+                          setDestSuggestions([]);
                         }
                       }}
                       className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 transition-colors"
@@ -640,7 +700,7 @@ export const CreateTrip: React.FC = () => {
             </button>
           </div>
 
-          {/* Cột phải: Bản đồ lộ trình & Tổng quan ETA (7 cột) */}
+          {/* Cột phải: Bản đồ lộ trình & Tổng quan ETA & Các chặng đường (7 cột) */}
           <div className="lg:col-span-7 space-y-6">
             {/* Thẻ tóm tắt thông số lộ trình */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -664,17 +724,19 @@ export const CreateTrip: React.FC = () => {
                   <span className="text-lg font-extrabold text-slate-900">
                     {routeResult ? `${routeResult.distance_km} km` : '—'}
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Mạng lưới cao tốc & quốc lộ</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    {routeResult && routeResult.distance_km > 300 ? 'Chuyến xe liên tỉnh đường dài' : 'Mạng lưới cao tốc & quốc lộ'}
+                  </span>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-xs text-slate-500 font-medium block">Thời gian chạy xe</span>
                   <span className="text-lg font-extrabold text-slate-900">
                     {routeResult
-                      ? `${Math.floor(routeResult.duration_min / 60)}h ${routeResult.duration_min % 60}m`
+                      ? `${Math.floor(routeResult.duration_min / 60)}h ${Math.round(routeResult.duration_min % 60)}m`
                       : '—'}
                   </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Tốc độ tiêu chuẩn</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Tốc độ xe ô tô tiêu chuẩn</span>
                 </div>
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 col-span-2 sm:col-span-1">
@@ -686,6 +748,7 @@ export const CreateTrip: React.FC = () => {
                           minute: '2-digit',
                           day: '2-digit',
                           month: '2-digit',
+                          year: 'numeric',
                         })
                       : '—'}
                   </span>
@@ -696,12 +759,38 @@ export const CreateTrip: React.FC = () => {
               </div>
             </div>
 
-            {/* Bản đồ Leaflet tương tác */}
+            {/* Bảng lộ trình các trục đường cao tốc / quốc lộ đi qua (Itinerary) */}
+            {routeResult && routeResult.major_roads && routeResult.major_roads.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center space-x-2 mb-3">
+                  <RouteIcon className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                    Các trục đường chính chuyến xe sẽ đi qua ({routeResult.major_roads.length} đoạn tuyến)
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1">
+                  {routeResult.major_roads.map((road, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs bg-slate-100 text-slate-800 border border-slate-200 font-medium"
+                    >
+                      <Milestone className="w-3 h-3 mr-1 text-emerald-600 flex-shrink-0" />
+                      {road}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  * Hệ thống dùng các trục đường này và bán kính 2km để đối chiếu khi người dùng gửi yêu cầu đón/trả dọc đường.
+                </p>
+              </div>
+            )}
+
+            {/* Bản đồ Leaflet tương tác với Esri & OSM */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700 flex items-center">
                   <MapPin className="w-4 h-4 mr-1 text-emerald-600" />
-                  Bản đồ lộ trình OpenStreetMap (Định tuyến đường bộ thực tế)
+                  Bản đồ lộ trình tương tác (Esri World Street Map & OSRM)
                 </span>
                 <span className="text-[11px] text-slate-500">
                   Đang click chọn: <strong className={mapPickMode === 'origin' ? 'text-emerald-600' : 'text-rose-600'}>
@@ -715,15 +804,16 @@ export const CreateTrip: React.FC = () => {
                 destination={{ lat: destLat, lng: destLng, label: destName }}
                 polylineCoordinates={routeResult?.coordinates}
                 onSelectPoint={handleMapClick}
-                height="460px"
+                height="480px"
                 distanceKm={routeResult?.distance_km}
                 durationMin={routeResult?.duration_min}
+                majorRoads={routeResult?.major_roads}
               />
 
               <div className="mt-3 flex items-center text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl">
                 <Info className="w-4 h-4 mr-2 text-slate-400 flex-shrink-0" />
                 <span>
-                  Lộ trình được vẽ tự động bám theo hệ thống đường quốc lộ và cao tốc thực tế tại Việt Nam. Bạn có thể click trực tiếp lên bất kỳ điểm nào trên bản đồ để chọn tọa độ chính xác.
+                  Bản đồ sử dụng dữ liệu Esri World Street Map không watermark. Bạn có thể gõ trực tiếp tên địa điểm để tìm kiếm tự động hoặc click trực tiếp lên bản đồ để chọn tọa độ.
                 </span>
               </div>
             </div>
