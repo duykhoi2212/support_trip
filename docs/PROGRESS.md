@@ -15,8 +15,8 @@ Trạng thái ký hiệu:
 | **Giai đoạn 1** | Khởi tạo monorepo (FE + BE), Prisma schema từ DBML, migration, seed, unit test core | 🟢 **Đã hoàn thành** | Ngày 1 |
 | **Giai đoạn 2** | Auth + Phân quyền (requireRole) + Hồ sơ cá nhân + Quên mật khẩu (CM-01..03) | 🟢 **Đã hoàn thành** | Ngày 2 |
 | **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟢 **Đã hoàn thành** | Ngày 3 |
-| **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟡 Kế tiếp | Ngày 4 |
-| **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🔴 Chưa làm | Ngày 5 |
+| **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟢 **Đã hoàn thành** | Ngày 4 |
+| **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🟡 Kế tiếp | Ngày 5 |
 | **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🔴 Chưa làm | Ngày 6 |
 | **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🔴 Chưa làm | Ngày 7 |
 
@@ -37,17 +37,17 @@ Trạng thái ký hiệu:
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
 | `DR-01` | Tạo chuyến xe (>= 24h, ORS routing, snapshot xe) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra chồng lịch không đệm, snapshot sức chứa, polyline |
-| `DR-02` | Quản lý yêu cầu vận chuyển (Xem danh sách, Chấp nhận, Từ chối) | 🔴 Chưa làm | `[ ]` | `[ ]` | Khóa nguyên tử khi chấp nhận, hiện SĐT |
-| `DR-03` | Điều hành chuyến xe (Bắt đầu, Cập nhật tiến trình đón/trả/giao, Kết thúc) | 🔴 Chưa làm | `[ ]` | `[ ]` | Chỉ hoàn thành khi tất cả request đã kết thúc |
+| `DR-02` | Quản lý yêu cầu vận chuyển (Xem danh sách, Chấp nhận, Từ chối) | 🟢 Đã xong | `[x]` | `[x]` | Khóa nguyên tử khi chấp nhận, ẩn/hiện SĐT theo trạng thái ACCEPTED |
+| `DR-03` | Điều hành chuyến xe (Bắt đầu, Cập nhật tiến trình đón/trả/giao, Kết thúc) | 🟢 Đã xong | `[x]` | `[x]` | Chỉ hoàn thành khi tất cả request đã kết thúc |
 | `DR-04` | Quản lý phương tiện (Thêm xe kèm ảnh, Bật/Tắt hoạt động) | 🟢 Đã xong | `[x]` | `[x]` | Không trùng loại xe + biển số; không tắt xe đang chạy |
 | `DR-05` | Quản lý danh sách chuyến & Hủy chuyến | 🟢 Đã xong | `[x]` | `[x]` | Hủy chuyến chuyển request thành CANCELLED & báo User |
 
 ### 2.3. Chức năng Người dùng (User - US)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| `US-01` | Tạo yêu cầu vận chuyển (Đi nhờ / Gửi đồ) | 🔴 Chưa làm | `[ ]` | `[ ]` | Kiểm tra điểm đón/trả <= 2km lộ trình polyline |
-| `US-02` | Tìm kiếm chuyến xe bằng AI (Gemini tự nhiên) & Bộ lọc | 🔴 Chưa làm | `[ ]` | `[ ]` | Dự phòng tự động nếu AI lỗi |
-| `US-03` | Theo dõi trạng thái & Hủy yêu cầu | 🔴 Chưa làm | `[ ]` | `[ ]` | Chỉ hủy được khi chuyến chưa IN_PROGRESS |
+| `US-01` | Tạo yêu cầu vận chuyển (Đi nhờ / Gửi đồ) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra trắc địa <= 2km từ polyline thực tế, upload ảnh hàng, tự tính m2 |
+| `US-02` | Tìm kiếm chuyến xe bằng AI (Gemini tự nhiên) & Bộ lọc | 🔴 Chưa làm | `[ ]` | `[ ]` | Dự phòng tự động nếu AI lỗi (Giai đoạn 6) |
+| `US-03` | Theo dõi trạng thái & Hủy yêu cầu | 🟢 Đã xong | `[x]` | `[x]` | Chỉ hủy khi chưa IN_PROGRESS, hoàn trả sức chứa xe nguyên tử |
 
 ### 2.4. Chức năng Quản trị viên (Admin - AD)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
@@ -68,6 +68,18 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-10 (Giai đoạn 4 - HOÀN THÀNH TOÀN DIỆN)**:
+  - Hoàn thành module Yêu cầu vận chuyển (`US-01`): Khách đặt đi nhờ xe (RIDE) hoặc gửi hàng (PACKAGE).
+  - Tích hợp kiểm tra trắc địa Turf.js điểm đón/trả phải nằm trong bán kính $\le 2\text{km}$ so với tọa độ uốn lượn thực tế của xe (`route_polyline`).
+  - Hỗ trợ gửi hàng đa thông số: upload ảnh chụp kiện hàng, tự động tính diện tích sàn chiếm dụng $m^2 = (dài \times rộng) / 10000$, kiểm tra khối lượng tải tối đa và danh mục hàng gửi.
+  - Hoàn thành module Quản lý yêu cầu (`DR-02`): Tài xế duyệt (Chấp nhận / Từ chối kèm lý do). Áp dụng giao dịch nguyên tử Prisma `$transaction` khóa sức chứa xe ngay khi bấm chấp nhận.
+  - Thực thi quy tắc bảo mật số điện thoại (Phone Masking): SĐT của hai bên hoàn toàn được giấu kín khi yêu cầu đang `PENDING`, `REJECTED` hoặc `CANCELLED`, và chỉ tự động mở khóa hiển thị khi yêu cầu đạt trạng thái `ACCEPTED`.
+  - Hoàn thành module Điều hành chuyến xe (`DR-03`): Trung tâm điều hành chuyến xe `/driver/trips/:id/manage` cho tài xế bắt đầu chuyến (`IN_PROGRESS`), cập nhật tiến trình từng khách (`PICKED_UP` -> `DROPPED_OFF`) hoặc kiện hàng (`PICKED_UP` -> `DELIVERED`), và hoàn thành chuyến xe (`COMPLETED`) khi tất cả yêu cầu đã phục vụ xong.
+  - Hoàn thành module Hủy yêu cầu (`US-03`): Khách hàng có thể hủy yêu cầu khi chuyến chưa chạy; nếu yêu cầu đã được duyệt trước đó, hệ thống tự động hoàn trả sức chứa ghế/cốp nguyên tử về lại chuyến xe.
+  - Hoàn thành hệ thống Thông báo in-app toàn diện: Tự động gửi thông báo tiếng Việt khi có yêu cầu mới, khi được duyệt/từ chối, khi xe bắt đầu khởi hành, hoàn thành hoặc hủy chuyến.
+  - Tích hợp chuông thông báo (Bell notification) trên thanh điều hướng Navbar với bộ đếm badge thời gian thực (polling 20s), popover xem nhanh thông báo, nút "Đánh dấu tất cả đã đọc" và trang toàn bộ thông báo `/notifications`.
+  - Xây dựng trang Tìm kiếm chuyến xe `/` và `/trips` với bộ lọc linh hoạt (Điểm đi, Điểm đến, Đi nhờ, Gửi hàng, Sức chứa trống) và xem chi tiết lộ trình kèm bản đồ trực quan `/trips/:id`.
+  - Viết 13 Integration Tests toàn diện cho Yêu cầu & Điều hành chuyến: Toàn bộ **47/47 vitest tests passed 100%** trên CSDL Neon Cloud.
 - **2026-11-09 (Giai đoạn 3 - NÂNG CẤP HOÀN THIỆN THEO PHẢN HỒI)**:
   - Bổ sung trường "Thời gian kết thúc chuyến dự kiến" (`eta`) cho phép tài xế tùy chỉnh lịch trình hoặc lấy gợi ý tự động từ bản đồ.
   - Nâng cấp cơ chế chống chồng lịch 2 tầng: Ràng buộc cả Tài xế (`driver_id`) và Phương tiện (`vehicle_id`) kèm 1 giờ đệm nghỉ ngơi giữa các chuyến xe liên tiếp.

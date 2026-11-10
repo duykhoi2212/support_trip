@@ -7,6 +7,8 @@ import { authRouter, meRouter } from './modules/auth-account/routes.js';
 import { vehicleRouter } from './modules/vehicle/routes.js';
 import { tripRouter } from './modules/trip/routes.js';
 import { mapRouter } from './modules/map/routes.js';
+import requestRouter from './modules/request/routes.js';
+import notificationRouter from './modules/notification/routes.js';
 import { uploadDir } from './modules/file-storage/multer.js';
 
 export const app = express();
@@ -37,6 +39,8 @@ app.use('/api/me', meRouter);
 app.use('/api/vehicles', vehicleRouter);
 app.use('/api/trips', tripRouter);
 app.use('/api/map', mapRouter);
+app.use('/api/requests', requestRouter);
+app.use('/api/notifications', notificationRouter);
 
 // Centralized error handler
 app.use(errorHandler);

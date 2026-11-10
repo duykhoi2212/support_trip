@@ -342,11 +342,24 @@ export const MyTrips: React.FC = () => {
 
                 {/* Footer Card: Hành động */}
               <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 font-medium">
                   {trip._count?.transport_requests || 0} yêu cầu đặt
                 </span>
 
                 <div className="flex items-center space-x-2">
+                  {/* Nút Điều hành chuyến: hiển thị cho chuyến chưa bị hủy */}
+                  {trip.status !== 'CANCELLED' && (
+                    <Link
+                      to={`/driver/trips/${trip.id}/manage`}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors inline-flex items-center space-x-1"
+                    >
+                      <span>Điều hành chuyến</span>
+                      {trip._count && trip._count.transport_requests > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      )}
+                    </Link>
+                  )}
+
                   {/* Nút Hủy chuyến: chỉ khả dụng khi OPEN hoặc CLOSED */}
                   {(trip.status === 'OPEN' || trip.status === 'CLOSED') && (
                     <button

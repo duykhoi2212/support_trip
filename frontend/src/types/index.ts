@@ -99,8 +99,76 @@ export interface Trip {
 }
 
 // -------------------------------------------------------------
-// BẢN ĐỒ & TUYẾN ĐƯỜNG (MAP & ROUTE)
+// YÊU CẦU VẬN CHUYỂN & KIỆN HÀNG (REQUEST & PACKAGE)
 // -------------------------------------------------------------
+export type RequestType = 'RIDE' | 'PACKAGE';
+export type RequestStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'FAILED'
+  | 'COMPLETED';
+export type RideProgress = 'NOT_PICKED_UP' | 'PICKED_UP' | 'DROPPED_OFF';
+export type PackageStatus = 'AWAITING_PICKUP' | 'PICKED_UP' | 'DELIVERED';
+
+export interface PackageItem {
+  id: string;
+  request_id: string;
+  description: string;
+  category?: string | null;
+  photo_url: string;
+  weight_kg: number;
+  area_m2: number;
+  recipient_name: string;
+  recipient_phone: string;
+  status: PackageStatus;
+}
+
+export interface TransportRequest {
+  id: string;
+  code: string;
+  trip_id: string;
+  user_id: string;
+  type: RequestType;
+  pickup_name: string;
+  pickup_lat: number;
+  pickup_lng: number;
+  dropoff_name: string;
+  dropoff_lat: number;
+  dropoff_lng: number;
+  passenger_count?: number | null;
+  ride_progress?: RideProgress | null;
+  status: RequestStatus;
+  reject_reason?: string | null;
+  cancel_reason?: string | null;
+  cancelled_by?: string | null;
+  decided_at?: string | null;
+  created_at: string;
+  user?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string | null;
+    phone?: string;
+  };
+  trip?: Trip;
+  package_items?: PackageItem[];
+}
+
+// -------------------------------------------------------------
+// THÔNG BÁO (NOTIFICATION)
+// -------------------------------------------------------------
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  content: string;
+  ref_type?: string | null;
+  ref_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+}
 export interface RouteStep {
   name: string;
   distance_km: number;
