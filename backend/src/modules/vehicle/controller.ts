@@ -59,12 +59,28 @@ export class VehicleController {
       if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
       const vehicleId = BigInt(req.params.id);
       const validated = updateVehicleSchema.parse(req.body);
+      const newPhotoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
 
-      const updated = await VehicleService.updateVehicle(req.user.id, vehicleId, validated);
+      const updated = await VehicleService.updateVehicle(req.user.id, vehicleId, validated, newPhotoUrl);
       res.status(200).json({
         success: true,
         data: updated,
         message: 'Cập nhật thông tin phương tiện thành công.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async delete(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
+      const vehicleId = BigInt(req.params.id);
+
+      const result = await VehicleService.deleteVehicle(req.user.id, vehicleId);
+      res.status(200).json({
+        success: true,
+        message: result.message,
       });
     } catch (error) {
       next(error);

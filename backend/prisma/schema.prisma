@@ -148,6 +148,7 @@ model Vehicle {
   cargo_max_kg   Float          @default(0)
   photo_url      String         @db.VarChar(255)
   status         vehicle_status @default(ACTIVE)
+  is_deleted     Boolean        @default(false)
   created_at     DateTime       @default(now()) @db.Timestamp(6)
 
   // Relations

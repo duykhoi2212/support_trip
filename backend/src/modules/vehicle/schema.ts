@@ -29,5 +29,18 @@ export const createVehicleSchema = z.object({
 export const updateVehicleSchema = z.object({
   brand_model: z.string().max(100, 'Hãng xe không được vượt quá 100 ký tự').optional(),
   color: z.string().max(30, 'Màu xe không được vượt quá 30 ký tự').optional(),
+  seat_count: z.coerce
+    .number()
+    .int('Số ghế phải là số nguyên')
+    .min(1, 'Số ghế ngồi phải có ít nhất 1 chỗ')
+    .optional(),
+  cargo_area_m2: z.coerce
+    .number()
+    .min(0, 'Diện tích khoang hàng không thể âm')
+    .optional(),
+  cargo_max_kg: z.coerce
+    .number()
+    .min(0, 'Tải trọng khoang hàng không thể âm')
+    .optional(),
 });
 

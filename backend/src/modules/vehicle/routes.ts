@@ -12,7 +12,8 @@ vehicleRouter.use(authenticateToken, requireRole([user_role.DRIVER]));
 vehicleRouter.post('/', uploadImage.single('photo'), VehicleController.create);
 vehicleRouter.get('/', VehicleController.getMyVehicles);
 vehicleRouter.get('/:id', VehicleController.getById);
-vehicleRouter.patch('/:id', VehicleController.update);
+vehicleRouter.patch('/:id', uploadImage.single('photo'), VehicleController.update);
+vehicleRouter.delete('/:id', VehicleController.delete);
 vehicleRouter.post('/:id/deactivate', VehicleController.deactivate);
 vehicleRouter.post('/:id/activate', VehicleController.activate);
 

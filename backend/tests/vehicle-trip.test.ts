@@ -139,9 +139,9 @@ describe('Kiểm thử Module Phương tiện & Chuyến xe (DR-04, DR-01, DR-05
   });
 
   it('5b. DR-01: Cho phép nhập thời gian kết thúc chuyến dự kiến (eta) hợp lệ, chặn khi eta < thời gian chạy tối thiểu', async () => {
-    const depTime = new Date(Date.now() + 60 * 60 * 1000 * 24).toISOString(); // +24h
+    const depTime = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString(); // +26h (an toàn > 24h)
     // ETA sớm hơn giờ khởi hành -> Lỗi
-    const invalidEta = new Date(Date.now() + 60 * 60 * 1000 * 20).toISOString();
+    const invalidEta = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
 
     await expect(
       TripService.createTrip(driverId, {
@@ -182,5 +182,68 @@ describe('Kiểm thử Module Phương tiện & Chuyến xe (DR-04, DR-01, DR-05
 
     const activated = await VehicleService.activateVehicle(driverId, vehicleId);
     expect(activated.status).toBe(vehicle_status.ACTIVE);
+  });
+
+  it('9. DR-04: Chỉnh sửa thông tin phương tiện (brand, color, seat, cargo) thành công', async () => {
+    const updated = await VehicleService.updateVehicle(
+      driverId,
+      vehicleId,
+      {
+        brand_model: 'Mazda 3 2024 Facelift',
+        color: 'Trắng Ngọc Trai',
+        seat_count: 5,
+        cargo_area_m2: 1.5,
+        cargo_max_kg: 150,
+      },
+      '/uploads/test-car-updated.jpg'
+    );
+
+    expect(updated.brand_model).toBe('Mazda 3 2024 Facelift');
+    expect(updated.color).toBe('Trắng Ngọc Trai');
+    expect(updated.seat_count).toBe(5);
+    expect(updated.cargo_area_m2).toBe(1.5);
+    expect(updated.cargo_max_kg).toBe(150);
+    expect(updated.photo_url).toBe('/uploads/test-car-updated.jpg');
+  });
+
+  it('10. DR-04: Xóa xe đã từng gắn với chuyến xe trong quá khứ -> Soft delete (is_deleted = true, ẩn khỏi getMyVehicles)', async () => {
+    // Xe này đã từng có 1 chuyến xe (nhưng đã CANCELLED ở bước 7)
+    const result = await VehicleService.deleteVehicle(driverId, vehicleId);
+    expect(result.message.toLowerCase()).toContain('đã xóa');
+
+    // Kiểm tra xe không còn xuất hiện trong danh sách xe của tài xế
+    const driverVehicles = await VehicleService.getMyVehicles(driverId);
+    const foundInList = driverVehicles.some(v => v.id === vehicleId);
+    expect(foundInList).toBe(false);
+
+    // Kiểm tra trong DB xe vẫn tồn tại để bảo toàn quan hệ với chuyến xe cũ nhưng is_deleted = true
+    const dbVehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    expect(dbVehicle).toBeDefined();
+    expect(dbVehicle?.is_deleted).toBe(true);
+    expect(dbVehicle?.status).toBe(vehicle_status.INACTIVE);
+  });
+
+  it('11. DR-04: Xóa xe hoàn toàn (Hard delete) khi chưa từng chạy chuyến xe nào', async () => {
+    // Tạo 1 xe mới tinh chưa có chuyến nào
+    const freshPlate = '29A-999.88';
+    const freshCar = await VehicleService.createVehicle(
+      driverId,
+      {
+        type: vehicle_type.CAR,
+        plate_number: freshPlate,
+        brand_model: 'Honda City',
+        seat_count: 4,
+        cargo_area_m2: 1.0,
+        cargo_max_kg: 100,
+      },
+      '/uploads/fresh-car.jpg'
+    );
+
+    const deleteResult = await VehicleService.deleteVehicle(driverId, freshCar.id);
+    expect(deleteResult.message.toLowerCase()).toContain('đã xóa hoàn toàn');
+
+    // Kiểm tra DB không còn bản ghi xe này
+    const dbCheck = await prisma.vehicle.findUnique({ where: { id: freshCar.id } });
+    expect(dbCheck).toBeNull();
   });
 });

@@ -23,10 +23,19 @@ export const vehicleService = {
 
   async updateVehicle(
     id: string,
-    data: { brand_model?: string; color?: string }
+    formData: FormData
   ): Promise<Vehicle> {
-    const res = await api.patch<ApiSuccessResponse<Vehicle>>(`/vehicles/${id}`, data);
+    const res = await api.patch<ApiSuccessResponse<Vehicle>>(`/vehicles/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data.data;
+  },
+
+  async deleteVehicle(id: string): Promise<string> {
+    const res = await api.delete<{ success: boolean; message: string }>(`/vehicles/${id}`);
+    return res.data.message;
   },
 
   async deactivateVehicle(id: string): Promise<Vehicle> {
