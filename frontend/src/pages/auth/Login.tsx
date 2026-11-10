@@ -76,7 +76,7 @@ export const Login = () => {
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                Người dùng (Đặt xe / Gửi hàng)
+                Người dùng
               </button>
               <button
                 type="button"
@@ -87,7 +87,7 @@ export const Login = () => {
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                Tài xế (Tạo & Chạy chuyến)
+                Tài xế
               </button>
             </div>
           </div>

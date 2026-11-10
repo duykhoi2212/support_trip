@@ -122,9 +122,6 @@ export const Register = () => {
                 </div>
               </button>
             </div>
-            <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg mt-2 border border-amber-200 leading-relaxed">
-              ⚠️ <strong>Lưu ý:</strong> Vai trò và số điện thoại được gắn cố định với tài khoản và không thể thay đổi sau khi đăng ký thành công.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
