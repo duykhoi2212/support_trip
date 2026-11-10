@@ -15,7 +15,7 @@ export const authService = {
   },
 
   // CM-02: Đăng nhập
-  async login(data: { identifier: string; password: string }): Promise<AuthResponse> {
+  async login(data: { identifier: string; password: string; role?: 'USER' | 'DRIVER' | 'ADMIN' }): Promise<AuthResponse> {
     const res = await api.post<ApiSuccessResponse<AuthResponse>>('/auth/login', data);
     return res.data.data;
   },
@@ -52,7 +52,7 @@ export const authService = {
   },
 
   // Quên mật khẩu: Gửi email link đặt lại mật khẩu
-  async forgotPassword(data: { email: string }): Promise<string> {
+  async forgotPassword(data: { email: string; role?: 'USER' | 'DRIVER' | 'ADMIN' }): Promise<string> {
     const res = await api.post<{ success: boolean; message: string }>('/auth/forgot-password', data);
     return res.data.message;
   },

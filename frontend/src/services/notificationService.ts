@@ -20,3 +20,4 @@ export const notificationService = {
     await api.patch('/notifications/read-all');
   },
 };
+

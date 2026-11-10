@@ -36,3 +36,4 @@ export function checkDistanceToPolyline(
 
   return Math.round(minDistance * 100) / 100;
 }
+

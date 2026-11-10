@@ -304,6 +304,15 @@ export class TripService {
             avatar_url: true,
           },
         },
+        _count: {
+          select: {
+            transport_requests: {
+              where: {
+                status: request_status.ACCEPTED,
+              },
+            },
+          },
+        },
       },
       orderBy: { departure_time: 'asc' },
     });

@@ -494,14 +494,53 @@ export const TripDetails: React.FC = () => {
                   Đăng nhập tài khoản
                 </Link>
               </div>
-            ) : isDriver ? (
-              <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-amber-800 text-xs">
-                <p className="font-semibold mb-1">Bạn là tài xế của chuyến xe này</p>
-                <p>Bạn không thể tự đặt chỗ trên chuyến xe của chính mình. Vui lòng vào trang Điều hành chuyến để quản lý yêu cầu của khách.</p>
+            ) : user.role === 'DRIVER' ? (
+              <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 text-amber-800 text-xs leading-relaxed space-y-3">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="font-bold text-sm text-amber-900">Tài khoản Tài xế không thể đặt chuyến</p>
+                </div>
+                <p>
+                  Bạn đang đăng nhập với tư cách <strong>Tài xế</strong>. Tài xế không sử dụng dịch vụ đi nhờ hoặc gửi hàng như người dùng.
+                </p>
+                <p className="text-slate-600">
+                  Nếu bạn có nhu cầu đi nhờ hoặc gửi đồ, vui lòng đăng xuất và đăng nhập bằng <strong>tài khoản Người dùng</strong> (hoặc đăng ký vai trò Người dùng với cùng Email/SĐT).
+                </p>
+                <div className="pt-1 flex items-center space-x-2">
+                  <Link
+                    to="/driver/trips"
+                    className="inline-flex items-center px-4 py-2 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors"
+                  >
+                    Về Quản lý chuyến xe
+                  </Link>
+                </div>
               </div>
             ) : trip.status !== 'OPEN' ? (
               <div className="bg-slate-100 p-4 rounded-2xl text-slate-600 text-xs text-center">
                 Chuyến xe hiện không mở nhận yêu cầu mới.
+              </div>
+            ) : requestType === 'RIDE' && remainingSeats <= 0 ? (
+              <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 text-rose-800 text-xs leading-relaxed text-center space-y-2">
+                <p className="font-bold text-sm text-rose-900">Chuyến xe này đã kín chỗ ngồi (0/{trip.seats_total})</p>
+                <p className="text-slate-600">
+                  Tất cả các ghế đã được tài xế nhận đủ khách. Bạn có thể chuyển sang tab <strong>Gửi hàng hóa</strong> nếu xe còn chỗ cốp.
+                </p>
+                {remainingArea > 0 && remainingWeight > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setRequestType('PACKAGE')}
+                    className="mt-2 inline-flex items-center px-4 py-2 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors"
+                  >
+                    Chuyển sang Gửi hàng hóa
+                  </button>
+                )}
+              </div>
+            ) : requestType === 'PACKAGE' && (remainingArea <= 0 || remainingWeight <= 0) ? (
+              <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 text-rose-800 text-xs leading-relaxed text-center space-y-2">
+                <p className="font-bold text-sm text-rose-900">Khoang cốp của xe đã hết sức chứa</p>
+                <p className="text-slate-600">
+                  Chuyến xe này đã nhận đủ số lượng hoặc tải trọng kiện hàng tối đa.
+                </p>
               </div>
             ) : (
               <form onSubmit={handleBookingSubmit} className="space-y-4">

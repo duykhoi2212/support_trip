@@ -91,7 +91,7 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
   });
 
   it('7. CM-03: Cập nhật thông tin cá nhân (họ tên)', async () => {
-    const user = await prisma.user.findUnique({ where: { phone: testPhone } });
+    const user = await prisma.user.findFirst({ where: { phone: testPhone } });
     expect(user).toBeDefined();
 
     const updated = await AuthService.updateProfile(user!.id, {
@@ -102,7 +102,7 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
   });
 
   it('8. CM-03: Đổi mật khẩu thành công', async () => {
-    const user = await prisma.user.findUnique({ where: { phone: testPhone } });
+    const user = await prisma.user.findFirst({ where: { phone: testPhone } });
     const newPassword = 'NewPassword@456';
 
     // 8.1: Chặn đổi mật khẩu nếu mật khẩu mới trùng với mật khẩu hiện tại
@@ -179,7 +179,7 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
   });
 
   it('10. CM-02: Chặn đăng nhập khi tài khoản bị khóa vĩnh viễn (LOCKED_PERM)', async () => {
-    const user = await prisma.user.findUnique({ where: { phone: testPhone } });
+    const user = await prisma.user.findFirst({ where: { phone: testPhone } });
     await prisma.user.update({
       where: { id: user!.id },
       data: { status: account_status.LOCKED_PERM },
@@ -191,6 +191,38 @@ describe('Kiểm thử Module Xác thực & Tài khoản (CM-01, CM-02, CM-03, F
         password: 'ResetPassword@789',
       })
     ).rejects.toThrow('khóa vĩnh viễn');
+  });
+
+  it('11. Cho phép cùng email và số điện thoại đăng ký tài khoản DRIVER khi đã có USER', async () => {
+    const driverRes = await AuthService.register({
+      phone: testPhone,
+      email: testEmail,
+      password: 'DriverPassword@123',
+      full_name: 'Tài Xế Thử Nghiệm',
+      role: user_role.DRIVER,
+    });
+
+    expect(driverRes.user.role).toBe(user_role.DRIVER);
+    expect(driverRes.token).toBeDefined();
+
+    // Đăng nhập với vai trò DRIVER
+    const driverLogin = await AuthService.login({
+      identifier: testEmail,
+      password: 'DriverPassword@123',
+      role: user_role.DRIVER,
+    });
+    expect(driverLogin.user.role).toBe(user_role.DRIVER);
+
+    // Chặn trùng lặp trong cùng vai trò DRIVER
+    await expect(
+      AuthService.register({
+        phone: '0988001122',
+        email: testEmail,
+        password: 'DriverPassword@123',
+        full_name: 'Tài Xế Trùng Email',
+        role: user_role.DRIVER,
+      })
+    ).rejects.toThrow('Email này đã được đăng ký với vai trò Tài xế');
   });
 });
 

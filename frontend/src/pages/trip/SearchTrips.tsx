@@ -10,7 +10,8 @@ import {
   Package,
   Weight,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  XCircle
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { Trip } from '../../types';
@@ -289,21 +290,43 @@ export const SearchTrips: React.FC = () => {
             const availableArea = (trip.cargo_area_total_m2 - trip.cargo_area_reserved_m2).toFixed(1);
             const availableWeight = trip.cargo_weight_total_kg - trip.cargo_weight_reserved_kg;
 
+            const isSeatsFull = availableSeats <= 0;
+            const isCargoFull = Number(availableArea) <= 0 || availableWeight <= 0;
+            const isTripFull = isSeatsFull && isCargoFull;
+
             return (
               <div
                 key={trip.id}
                 className="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden group"
               >
                 <div className="p-6">
-                  {/* Mã chuyến & Badge */}
+                  {/* Mã chuyến & Badge thông minh */}
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
                       {trip.code}
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
-                      Đang nhận yêu cầu
-                    </span>
+
+                    {isTripFull ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <XCircle className="w-3 h-3 mr-1 text-rose-500" />
+                        Đã kín chỗ & cốp
+                      </span>
+                    ) : isSeatsFull ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <Package className="w-3 h-3 mr-1 text-amber-600" />
+                        Chỉ nhận gửi hàng (Hết ghế)
+                      </span>
+                    ) : isCargoFull ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        <Users className="w-3 h-3 mr-1 text-blue-600" />
+                        Chỉ nhận đi nhờ (Hết cốp)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
+                        Đang nhận yêu cầu
+                      </span>
+                    )}
                   </div>
 
                   {/* Lộ trình Điểm đi -> Điểm đến */}
@@ -351,37 +374,51 @@ export const SearchTrips: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Sức chứa còn lại */}
+                  {/* Sức chứa còn lại - Rõ ràng minh bạch */}
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                      <div className="flex items-center justify-center text-emerald-700 mb-0.5">
+                    {/* Ghế */}
+                    <div className={`p-2 rounded-xl border ${isSeatsFull ? 'bg-rose-50/80 border-rose-200' : 'bg-emerald-50/60 border-emerald-100'}`}>
+                      <div className={`flex items-center justify-center mb-0.5 ${isSeatsFull ? 'text-rose-600' : 'text-emerald-700'}`}>
                         <Users className="w-3 h-3 mr-1" />
-                        <span className="text-[10px] font-semibold">Ghế</span>
+                        <span className="text-[10px] font-semibold">{isSeatsFull ? 'Ghế ngồi' : 'Ghế trống'}</span>
                       </div>
-                      <span className="font-extrabold text-emerald-900">
-                        {availableSeats}/{trip.seats_total}
+                      <span className={`font-extrabold text-[11px] block leading-tight ${isSeatsFull ? 'text-rose-700 font-black' : 'text-emerald-900'}`}>
+                        {isSeatsFull ? `Kín ${trip.seats_reserved}/${trip.seats_total}` : `Còn ${availableSeats}/${trip.seats_total}`}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-amber-50/60 border border-amber-100">
-                      <div className="flex items-center justify-center text-amber-700 mb-0.5">
+                    {/* Cốp */}
+                    <div className={`p-2 rounded-xl border ${Number(availableArea) <= 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-amber-50/60 border-amber-100'}`}>
+                      <div className={`flex items-center justify-center mb-0.5 ${Number(availableArea) <= 0 ? 'text-rose-600' : 'text-amber-700'}`}>
                         <Package className="w-3 h-3 mr-1" />
-                        <span className="text-[10px] font-semibold">Cốp</span>
+                        <span className="text-[10px] font-semibold">{Number(availableArea) <= 0 ? 'Cốp xe' : 'Cốp trống'}</span>
                       </div>
-                      <span className="font-extrabold text-amber-900">
-                        {availableArea} m²
+                      <span className={`font-extrabold text-[11px] block leading-tight ${Number(availableArea) <= 0 ? 'text-rose-700 font-black' : 'text-amber-900'}`}>
+                        {Number(availableArea) <= 0 ? 'Hết cốp' : `Còn ${availableArea} m²`}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-blue-50/60 border border-blue-100">
-                      <div className="flex items-center justify-center text-blue-700 mb-0.5">
+                    {/* Tải */}
+                    <div className={`p-2 rounded-xl border ${availableWeight <= 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-blue-50/60 border-blue-100'}`}>
+                      <div className={`flex items-center justify-center mb-0.5 ${availableWeight <= 0 ? 'text-rose-600' : 'text-blue-700'}`}>
                         <Weight className="w-3 h-3 mr-1" />
-                        <span className="text-[10px] font-semibold">Tải</span>
+                        <span className="text-[10px] font-semibold">{availableWeight <= 0 ? 'Tải trọng' : 'Tải trống'}</span>
                       </div>
-                      <span className="font-extrabold text-blue-900">
-                        {availableWeight} kg
+                      <span className={`font-extrabold text-[11px] block leading-tight ${availableWeight <= 0 ? 'text-rose-700 font-black' : 'text-blue-900'}`}>
+                        {availableWeight <= 0 ? 'Hết tải' : `Còn ${availableWeight} kg`}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Dòng cập nhật yêu cầu đã duyệt */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="flex items-center">
+                      <Users className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                      <span>Đã nhận: <strong className="text-slate-800">{trip.seats_reserved} khách</strong></span>
+                    </span>
+                    <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      {trip._count?.transport_requests || 0} yêu cầu tham gia
+                    </span>
                   </div>
                 </div>
 
@@ -389,9 +426,13 @@ export const SearchTrips: React.FC = () => {
                 <div className="p-4 border-t border-slate-100 bg-white">
                   <Link
                     to={`/trips/${trip.id}`}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/15 transition-all flex items-center justify-center space-x-1.5 group-hover:translate-x-0.5"
+                    className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 ${
+                      isTripFull
+                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/15 group-hover:translate-x-0.5'
+                    }`}
                   >
-                    <span>Xem lộ trình & Đặt yêu cầu</span>
+                    <span>{isTripFull ? 'Xem chi tiết chuyến xe (Đã đầy)' : 'Xem lộ trình & Đặt yêu cầu'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>

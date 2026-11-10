@@ -147,7 +147,10 @@ export const Navbar = () => {
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo GoX */}
-        <Link to="/" className="flex items-center space-x-3 group">
+        <Link
+          to={user?.role === 'DRIVER' ? '/driver/trips' : user?.role === 'ADMIN' ? '/admin/users' : '/'}
+          className="flex items-center space-x-3 group"
+        >
           <div className="w-10 h-10 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 transition-colors flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
             <Car className="w-6 h-6" />
           </div>
@@ -163,23 +166,30 @@ export const Navbar = () => {
 
         {/* Navigation Links theo Vai trò */}
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-600">
-          <Link to="/" className="hover:text-emerald-600 transition-colors">
-            Tìm chuyến xe
-          </Link>
+          {/* USER hoặc Khách vãng lai: Tìm chuyến xe */}
+          {(!user || user.role === 'USER') && (
+            <Link to="/" className="hover:text-emerald-600 transition-colors">
+              Tìm chuyến xe
+            </Link>
+          )}
 
-          {/* Cho cả USER và DRIVER: Yêu cầu vận chuyển của tôi */}
-          {user && (
+          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi */}
+          {user?.role === 'USER' && (
             <Link to="/user/requests" className="hover:text-emerald-600 transition-colors">
               Yêu cầu của tôi
             </Link>
           )}
 
+          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện */}
           {user?.role === 'DRIVER' && (
             <>
-              <Link to="/driver/trips" className="hover:text-emerald-600 transition-colors">
+              <Link to="/driver/trips" className="hover:text-emerald-600 transition-colors font-semibold">
                 Chuyến xe của tôi
               </Link>
-              <Link to="/driver/vehicles" className="hover:text-emerald-600 transition-colors">
+              <Link to="/driver/trips/create" className="hover:text-emerald-600 transition-colors font-semibold">
+                Đăng chuyến mới
+              </Link>
+              <Link to="/driver/vehicles" className="hover:text-emerald-600 transition-colors font-semibold">
                 Phương tiện
               </Link>
             </>
@@ -347,13 +357,34 @@ export const Navbar = () => {
                       <span>Thông tin tài khoản</span>
                     </Link>
 
-                    <Link
-                      to="/user/requests"
-                      className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                    >
-                      <Package className="w-4 h-4" />
-                      <span>Yêu cầu vận chuyển</span>
-                    </Link>
+                    {user.role === 'USER' && (
+                      <Link
+                        to="/user/requests"
+                        className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                      >
+                        <Package className="w-4 h-4" />
+                        <span>Yêu cầu vận chuyển</span>
+                      </Link>
+                    )}
+
+                    {user.role === 'DRIVER' && (
+                      <>
+                        <Link
+                          to="/driver/trips"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Car className="w-4 h-4" />
+                          <span>Chuyến xe của tôi</span>
+                        </Link>
+                        <Link
+                          to="/driver/vehicles"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Car className="w-4 h-4" />
+                          <span>Phương tiện</span>
+                        </Link>
+                      </>
+                    )}
 
                     <button
                       onClick={handleLogout}

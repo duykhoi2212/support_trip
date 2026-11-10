@@ -31,6 +31,7 @@ export const loginSchema = z.object({
   password: z
     .string({ required_error: 'Vui lòng nhập mật khẩu' })
     .min(1, 'Vui lòng nhập mật khẩu'),
+  role: z.enum([user_role.USER, user_role.DRIVER, user_role.ADMIN]).optional(),
 });
 
 export const updateProfileSchema = z.object({
@@ -60,6 +61,7 @@ export const forgotPasswordSchema = z.object({
   email: z
     .string({ required_error: 'Vui lòng nhập email' })
     .email('Định dạng email không hợp lệ'),
+  role: z.enum([user_role.USER, user_role.DRIVER, user_role.ADMIN]).optional(),
 });
 
 export const resetPasswordSchema = z.object({

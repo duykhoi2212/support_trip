@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/common/Navbar';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { Login } from './pages/auth/Login';
@@ -16,6 +16,15 @@ import { TripDetails } from './pages/trip/TripDetails';
 import { MyRequests } from './pages/user/MyRequests';
 import { Notifications } from './pages/notification/Notifications';
 
+// Trang chủ thông minh theo vai trò
+const HomeRoute = () => {
+  const { user } = useAuth();
+  if (user?.role === 'DRIVER') {
+    return <Navigate to="/driver/trips" replace />;
+  }
+  return <SearchTrips />;
+};
+
 export default function App() {
   return (
     <Router>
@@ -25,9 +34,9 @@ export default function App() {
 
           <main className="flex-1 flex flex-col">
             <Routes>
-              {/* Công khai (Public Routes) */}
-              <Route path="/" element={<SearchTrips />} />
-              <Route path="/trips" element={<SearchTrips />} />
+              {/* Trang chủ & Tìm chuyến */}
+              <Route path="/" element={<HomeRoute />} />
+              <Route path="/trips" element={<HomeRoute />} />
               <Route path="/trips/:id" element={<TripDetails />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -47,7 +56,7 @@ export default function App() {
               <Route
                 path="/user/requests"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['USER']}>
                     <MyRequests />
                   </ProtectedRoute>
                 }

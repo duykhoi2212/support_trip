@@ -44,20 +44,20 @@ export class AuthService {
    * Không thể đổi vai trò và số điện thoại sau khi đăng ký
    */
   static async register(input: z.infer<typeof registerSchema>) {
-    // 1. Kiểm tra trùng số điện thoại
-    const existingPhone = await prisma.user.findUnique({
-      where: { phone: input.phone },
+    // 1. Kiểm tra trùng số điện thoại theo vai trò
+    const existingPhone = await prisma.user.findFirst({
+      where: { phone: input.phone, role: input.role },
     });
     if (existingPhone) {
-      throw new AppError(409, 'PHONE_EXISTS', 'Số điện thoại này đã được đăng ký trên hệ thống.');
+      throw new AppError(409, 'PHONE_EXISTS', `Số điện thoại này đã được đăng ký với vai trò ${input.role === user_role.DRIVER ? 'Tài xế' : 'Người dùng'}.`);
     }
 
-    // 2. Kiểm tra trùng email
-    const existingEmail = await prisma.user.findUnique({
-      where: { email: input.email },
+    // 2. Kiểm tra trùng email theo vai trò
+    const existingEmail = await prisma.user.findFirst({
+      where: { email: input.email, role: input.role },
     });
     if (existingEmail) {
-      throw new AppError(409, 'EMAIL_EXISTS', 'Email này đã được đăng ký trên hệ thống.');
+      throw new AppError(409, 'EMAIL_EXISTS', `Email này đã được đăng ký với vai trò ${input.role === user_role.DRIVER ? 'Tài xế' : 'Người dùng'}.`);
     }
 
     // 3. Băm mật khẩu (bcrypt 10 rounds)
@@ -99,11 +99,16 @@ export class AuthService {
    * CM-02: Đăng nhập hệ thống (Bằng số điện thoại hoặc email)
    */
   static async login(input: z.infer<typeof loginSchema>) {
-    // 1. Tìm user theo số điện thoại hoặc email
+    // 1. Tìm user theo số điện thoại hoặc email (và vai trò nếu có)
+    const whereClause: any = {
+      OR: [{ phone: input.identifier }, { email: input.identifier }],
+    };
+    if (input.role) {
+      whereClause.role = input.role;
+    }
+
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ phone: input.identifier }, { email: input.identifier }],
-      },
+      where: whereClause,
     });
 
     if (!user) {
@@ -297,8 +302,13 @@ export class AuthService {
     const genericSuccessMessage =
       'Nếu địa chỉ email tồn tại trên hệ thống, chúng tôi đã gửi đường dẫn đặt lại mật khẩu đến hòm thư của bạn. Vui lòng kiểm tra (bao gồm cả thư mục Spam).';
 
-    const user = await prisma.user.findUnique({
-      where: { email: input.email },
+    const whereClause: any = { email: input.email };
+    if (input.role) {
+      whereClause.role = input.role;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: whereClause,
     });
 
     // Không báo lỗi khi không tìm thấy email để chống kẻ xấu dò quét tài khoản
@@ -316,19 +326,20 @@ export class AuthService {
     );
 
     const resetLink = `${config.FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`;
+    const roleLabel = user.role === 'DRIVER' ? 'Tài xế' : user.role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng';
 
     await mailer.send({
       to: user.email,
-      subject: '[DiNho & GuiDo AI] Yêu cầu đặt lại mật khẩu',
-      text: `Xin chào ${user.full_name},\n\nBạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu cho tài khoản ${user.email}.\n\nVui lòng truy cập đường dẫn sau để tạo mật khẩu mới (có hiệu lực trong 15 phút và chỉ sử dụng 1 lần):\n${resetLink}\n\nNếu bạn không yêu cầu hành động này, vui lòng bỏ qua email và tài khoản của bạn vẫn được an toàn.\n\nTrân trọng,\nĐội ngũ hỗ trợ DiNho & GuiDo AI`,
+      subject: `[GoX] Yêu cầu đặt lại mật khẩu tài khoản ${roleLabel}`,
+      text: `Xin chào ${user.full_name},\n\nBạn (hoặc ai đó) vừa yêu cầu đặt lại mật khẩu cho tài khoản ${roleLabel} (${user.email}).\n\nVui lòng truy cập đường dẫn sau để tạo mật khẩu mới (có hiệu lực trong 15 phút và chỉ sử dụng 1 lần):\n${resetLink}\n\nNếu bạn không yêu cầu hành động này, vui lòng bỏ qua email và tài khoản của bạn vẫn được an toàn.\n\nTrân trọng,\nĐội ngũ hỗ trợ GoX – Kết nối hành trình, tối ưu chuyến đi`,
       html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px;">
-          <h2 style="color: #059669; margin-top: 0;">Yêu cầu đặt lại mật khẩu</h2>
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px;">
+          <h2 style="color: #059669; margin-top: 0;">GoX – Yêu cầu đặt lại mật khẩu</h2>
           <p>Xin chào <strong>${user.full_name}</strong>,</p>
-          <p>Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email <strong>${user.email}</strong>.</p>
+          <p>Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản <strong>${roleLabel}</strong> liên kết với email <strong>${user.email}</strong>.</p>
           <p>Vui lòng nhấn vào nút bên dưới để tiến hành đặt lại mật khẩu mới:</p>
           <div style="margin: 25px 0;">
-            <a href="${resetLink}" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Đặt lại mật khẩu</a>
+            <a href="${resetLink}" style="background-color: #059669; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Đặt lại mật khẩu ${roleLabel}</a>
           </div>
           <p style="font-size: 13px; color: #64748b;">
             Đường dẫn này chỉ có hiệu lực trong <strong>15 phút</strong> và chỉ sử dụng được <strong>1 lần duy nhất</strong>.<br/>

@@ -57,3 +57,4 @@ export const updateProgressSchema = z.object({
   // Lý do thất bại (nếu có sự cố)
   fail_reason_code: z.nativeEnum(fail_reason_code).optional(),
 });
+
