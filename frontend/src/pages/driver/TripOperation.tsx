@@ -6,7 +6,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   Play,
-  Flag
+  Flag,
+  Eye,
+  X,
+  Maximize2,
+  User,
+  Box
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { requestService } from '../../services/requestService';
@@ -28,6 +33,12 @@ export const TripOperation: React.FC = () => {
   const [rejectModalReq, setRejectModalReq] = useState<TransportRequest | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [rejecting, setRejecting] = useState<boolean>(false);
+
+  // Modal Chi tiết yêu cầu vận chuyển
+  const [selectedDetailReq, setSelectedDetailReq] = useState<TransportRequest | null>(null);
+
+  // Modal Xem ảnh phóng to (Lightbox)
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchTripAndRequests = async () => {
     if (!id) return;
@@ -326,63 +337,132 @@ export const TripOperation: React.FC = () => {
               Hiện không có yêu cầu nào đang chờ bạn duyệt.
             </div>
           ) : (
-            pendingRequests.map((req) => (
-              <div
-                key={req.id}
-                className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-              >
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                      {req.code}
-                    </span>
-                    <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                        req.type === 'RIDE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {req.type === 'RIDE' ? `Đi nhờ (${req.passenger_count} người)` : 'Gửi kiện hàng'}
-                    </span>
-                    <span className="text-xs text-slate-400">Khách: {req.user?.full_name}</span>
-                  </div>
+            pendingRequests.map((req) => {
+              const isPackage = req.type === 'PACKAGE';
+              const pkg = isPackage && req.package_items && req.package_items[0] ? req.package_items[0] : null;
 
-                  <div className="text-xs space-y-1">
-                    <p className="text-slate-700">
-                      <strong className="text-emerald-700">Đón:</strong> {req.pickup_name}
-                    </p>
-                    <p className="text-slate-700">
-                      <strong className="text-rose-700">Trả:</strong> {req.dropoff_name}
-                    </p>
-                    {req.type === 'PACKAGE' && req.package_items && req.package_items[0] && (
-                      <p className="text-slate-500 text-[11px]">
-                        Hàng: {req.package_items[0].description} ({req.package_items[0].weight_kg}kg, {req.package_items[0].area_m2}m²)
-                      </p>
+              return (
+                <div
+                  key={req.id}
+                  className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center md:justify-between gap-5"
+                >
+                  <div className="space-y-3 flex-1">
+                    {/* Header yêu cầu */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                        {req.code}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          req.type === 'RIDE'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {req.type === 'RIDE' ? `Đi nhờ (${req.passenger_count} người)` : 'Gửi kiện hàng'}
+                      </span>
+                      <span className="text-xs text-slate-500 flex items-center">
+                        <User className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                        Khách: <strong className="ml-1 text-slate-800">{req.user?.full_name}</strong>
+                      </span>
+                    </div>
+
+                    {/* Lộ trình đón - trả */}
+                    <div className="text-xs space-y-1.5 pl-1">
+                      <div className="flex items-start space-x-2 text-slate-700">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                        <p className="leading-tight">
+                          <strong className="text-emerald-700">Đón:</strong> {req.pickup_name}
+                        </p>
+                      </div>
+                      <div className="flex items-start space-x-2 text-slate-700">
+                        <div className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
+                        <p className="leading-tight">
+                          <strong className="text-rose-700">Trả:</strong> {req.dropoff_name}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Chi tiết kiện hàng kèm ảnh (nếu là PACKAGE) */}
+                    {pkg && (
+                      <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                        {pkg.photo_url ? (
+                          <div
+                            onClick={() => setPreviewImage(pkg.photo_url)}
+                            className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer group border border-slate-200 shadow-sm"
+                            title="Bấm để xem ảnh phóng to"
+                          >
+                            <img
+                              src={pkg.photo_url}
+                              alt={pkg.description}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-bold">
+                              <Maximize2 className="w-4 h-4" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-slate-200 text-slate-400 flex items-center justify-center flex-shrink-0">
+                            <Box className="w-6 h-6" />
+                          </div>
+                        )}
+
+                        <div className="text-xs space-y-0.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900">{pkg.description}</span>
+                            {pkg.category && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold">
+                                {pkg.category}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-600 text-[11px]">
+                            Trọng lượng: <strong className="text-slate-900">{pkg.weight_kg} kg</strong> • Thể tích cốp: <strong className="text-slate-900">{pkg.area_m2} m²</strong>
+                          </p>
+                          <p className="text-slate-500 text-[11px]">
+                            Người nhận: <strong className="text-slate-800">{pkg.recipient_name}</strong>
+                            {pkg.recipient_phone && (
+                              <span className="ml-1 text-slate-600 font-mono">({pkg.recipient_phone})</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <div className="flex items-center space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRejectModalReq(req);
-                      setRejectReason('');
-                    }}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
-                  >
-                    Từ chối
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLoadingId === req.id}
-                    onClick={() => handleAccept(req.id)}
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-colors disabled:opacity-50"
-                  >
-                    {actionLoadingId === req.id ? 'Đang duyệt...' : 'Chấp nhận'}
-                  </button>
+                  {/* Nhóm nút thao tác */}
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailReq(req)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-emerald-700 transition-colors flex items-center space-x-1"
+                      title="Xem toàn bộ thông tin yêu cầu"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>Chi tiết</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectModalReq(req);
+                        setRejectReason('');
+                      }}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
+                    >
+                      Từ chối
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === req.id}
+                      onClick={() => handleAccept(req.id)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-colors disabled:opacity-50"
+                    >
+                      {actionLoadingId === req.id ? 'Đang duyệt...' : 'Chấp nhận'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -398,16 +478,24 @@ export const TripOperation: React.FC = () => {
             onboardRequests.map((req) => {
               const isRide = req.type === 'RIDE';
               const isCompleted = req.status === 'COMPLETED';
+              const pkg = !isRide && req.package_items && req.package_items[0] ? req.package_items[0] : null;
 
               return (
                 <div
                   key={req.id}
-                  className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                  className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center md:justify-between gap-5"
                 >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
                         {req.code}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          isRide ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {isRide ? `Đi nhờ (${req.passenger_count} người)` : 'Kiện hàng'}
                       </span>
                       <span className="text-xs font-bold text-slate-900">{req.user?.full_name}</span>
 
@@ -433,23 +521,80 @@ export const TripOperation: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="text-xs space-y-1">
-                      <p className="text-slate-700">
-                        <strong className="text-emerald-700">Đón:</strong> {req.pickup_name}
-                      </p>
-                      <p className="text-slate-700">
-                        <strong className="text-rose-700">Trả:</strong> {req.dropoff_name}
-                      </p>
-                      {req.package_items && req.package_items[0] && (
-                        <p className="text-slate-500 text-[11px]">
-                          Kiện hàng: {req.package_items[0].description} (Người nhận: {req.package_items[0].recipient_name} - {req.package_items[0].recipient_phone})
+                    <div className="text-xs space-y-1.5 pl-1">
+                      <div className="flex items-start space-x-2 text-slate-700">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                        <p className="leading-tight">
+                          <strong className="text-emerald-700">Đón:</strong> {req.pickup_name}
                         </p>
-                      )}
+                      </div>
+                      <div className="flex items-start space-x-2 text-slate-700">
+                        <div className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
+                        <p className="leading-tight">
+                          <strong className="text-rose-700">Trả:</strong> {req.dropoff_name}
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Chi tiết kiện hàng kèm ảnh nếu là PACKAGE */}
+                    {pkg && (
+                      <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                        {pkg.photo_url ? (
+                          <div
+                            onClick={() => setPreviewImage(pkg.photo_url)}
+                            className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer group border border-slate-200 shadow-sm"
+                            title="Bấm để xem ảnh phóng to"
+                          >
+                            <img
+                              src={pkg.photo_url}
+                              alt={pkg.description}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-bold">
+                              <Maximize2 className="w-4 h-4" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-slate-200 text-slate-400 flex items-center justify-center flex-shrink-0">
+                            <Box className="w-6 h-6" />
+                          </div>
+                        )}
+
+                        <div className="text-xs space-y-0.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900">{pkg.description}</span>
+                            {pkg.category && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-semibold">
+                                {pkg.category}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-600 text-[11px]">
+                            Trọng lượng: <strong className="text-slate-900">{pkg.weight_kg} kg</strong> • Thể tích cốp: <strong className="text-slate-900">{pkg.area_m2} m²</strong>
+                          </p>
+                          <p className="text-slate-500 text-[11px]">
+                            Người nhận: <strong className="text-slate-800">{pkg.recipient_name}</strong>
+                            {pkg.recipient_phone && (
+                              <span className="ml-1 text-slate-600 font-mono">({pkg.recipient_phone})</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Nút thao tác tiến trình */}
-                  <div className="flex items-center space-x-2">
+                  {/* Nút thao tác tiến trình & Xem chi tiết */}
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailReq(req)}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 hover:text-emerald-700 transition-colors flex items-center space-x-1"
+                      title="Xem toàn bộ thông tin yêu cầu"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>Chi tiết</span>
+                    </button>
+
                     {/* Tiến trình đi nhờ (RIDE) */}
                     {isRide && !isCompleted && (
                       <>
@@ -513,6 +658,265 @@ export const TripOperation: React.FC = () => {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Modal Chi Tiết Yêu Cầu Vận Chuyển */}
+      {selectedDetailReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 my-8">
+            {/* Header Modal */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 mb-4">
+              <div>
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                    {selectedDetailReq.code}
+                  </span>
+                  <span
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                      selectedDetailReq.type === 'RIDE'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    {selectedDetailReq.type === 'RIDE' ? 'Đi nhờ xe (RIDE)' : 'Gửi kiện hàng (PACKAGE)'}
+                  </span>
+                  <span
+                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      selectedDetailReq.status === 'PENDING'
+                        ? 'bg-amber-100 text-amber-800'
+                        : selectedDetailReq.status === 'ACCEPTED'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : selectedDetailReq.status === 'COMPLETED'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {selectedDetailReq.status === 'PENDING'
+                      ? 'Chờ duyệt'
+                      : selectedDetailReq.status === 'ACCEPTED'
+                      ? 'Đã chấp nhận'
+                      : selectedDetailReq.status === 'COMPLETED'
+                      ? 'Đã hoàn thành'
+                      : selectedDetailReq.status}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Chi tiết yêu cầu vận chuyển</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDetailReq(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body Modal */}
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Người đặt */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                  Thông tin hành khách / người gửi
+                </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                      {selectedDetailReq.user?.full_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{selectedDetailReq.user?.full_name}</p>
+                      <p className="text-xs text-slate-500">Khách hàng GoX</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    {selectedDetailReq.user?.phone ? (
+                      <a
+                        href={`tel:${selectedDetailReq.user.phone}`}
+                        className="inline-flex items-center px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                        {selectedDetailReq.user.phone}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">
+                        🔒 SĐT bảo mật (mở khi duyệt)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lộ trình */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Địa điểm đón & trả
+                </span>
+                <div className="flex items-start space-x-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold text-emerald-800">Điểm đón: </span>
+                    <span className="text-slate-800">{selectedDetailReq.pickup_name}</span>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold text-rose-800">Điểm trả: </span>
+                    <span className="text-slate-800">{selectedDetailReq.dropoff_name}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nếu là PACKAGE: Thông tin kiện hàng & Hình ảnh */}
+              {selectedDetailReq.type === 'PACKAGE' && selectedDetailReq.package_items && selectedDetailReq.package_items[0] && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Hình ảnh & Thông số kiện hàng
+                  </span>
+
+                  {/* Ảnh chụp kiện hàng thực tế */}
+                  {selectedDetailReq.package_items[0].photo_url ? (
+                    <div>
+                      <div
+                        onClick={() => setPreviewImage(selectedDetailReq.package_items![0].photo_url)}
+                        className="relative w-full h-56 rounded-2xl overflow-hidden cursor-pointer group border border-slate-200 bg-slate-100 flex items-center justify-center shadow-inner"
+                      >
+                        <img
+                          src={selectedDetailReq.package_items[0].photo_url}
+                          alt={selectedDetailReq.package_items[0].description}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold space-x-2 transition-opacity">
+                          <Maximize2 className="w-4 h-4" />
+                          <span>Bấm để xem ảnh phóng to</span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-slate-400 text-center block mt-1">
+                        (Nhấp vào ảnh để xem kích thước lớn)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-2xl bg-slate-100 text-center text-slate-400 text-xs">
+                      Không có ảnh đính kèm
+                    </div>
+                  )}
+
+                  {/* Bảng chi tiết kiện hàng */}
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">Mô tả kiện hàng</span>
+                      <strong className="text-slate-900 block mt-0.5">{selectedDetailReq.package_items[0].description}</strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">Danh mục hàng</span>
+                      <strong className="text-slate-900 block mt-0.5">{selectedDetailReq.package_items[0].category || 'Hàng phổ thông'}</strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">Khối lượng</span>
+                      <strong className="text-slate-900 block mt-0.5">{selectedDetailReq.package_items[0].weight_kg} kg</strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">Diện tích chiếm cốp</span>
+                      <strong className="text-slate-900 block mt-0.5">{selectedDetailReq.package_items[0].area_m2} m²</strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">Người nhận</span>
+                      <strong className="text-slate-900 block mt-0.5">{selectedDetailReq.package_items[0].recipient_name}</strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-100">
+                      <span className="text-slate-400 block text-[11px]">SĐT người nhận</span>
+                      <strong className="text-slate-900 block mt-0.5 font-mono">{selectedDetailReq.package_items[0].recipient_phone}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Nếu là RIDE: Thông tin đi nhờ */}
+              {selectedDetailReq.type === 'RIDE' && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Thông tin hành khách đi cùng
+                  </span>
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-100 text-xs">
+                    <span className="text-slate-500">Số lượng chỗ đặt: </span>
+                    <strong className="text-slate-900">{selectedDetailReq.passenger_count} chỗ ngồi</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal: Actions */}
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100 mt-4">
+              <button
+                type="button"
+                onClick={() => setSelectedDetailReq(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors"
+              >
+                Đóng
+              </button>
+
+              {selectedDetailReq.status === 'PENDING' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reqToReject = selectedDetailReq;
+                      setSelectedDetailReq(null);
+                      setRejectModalReq(reqToReject);
+                      setRejectReason('');
+                    }}
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
+                  >
+                    Từ chối
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={actionLoadingId === selectedDetailReq.id}
+                    onClick={async () => {
+                      const reqId = selectedDetailReq.id;
+                      setSelectedDetailReq(null);
+                      await handleAccept(reqId);
+                    }}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-colors disabled:opacity-50"
+                  >
+                    Chấp nhận yêu cầu
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Phóng to ảnh (Lightbox) */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-12 right-0 p-2 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              title="Đóng (Esc)"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={previewImage}
+              alt="Ảnh phóng to"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+          </div>
         </div>
       )}
 

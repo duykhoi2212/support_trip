@@ -13,10 +13,12 @@ import {
   Sparkles
 } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
+import { useAuth } from '../../context/AuthContext';
 import { Notification } from '../../types';
 
 export const Notifications: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -67,6 +69,16 @@ export const Notifications: React.FC = () => {
   const handleNotificationClick = async (notif: Notification) => {
     if (!notif.is_read) {
       await handleMarkAsRead(notif.id);
+    }
+
+    // Đối với tài xế: chuyển ngay sang trang điều hành chuyến xe để xử lý duyệt yêu cầu
+    if (user?.role === 'DRIVER') {
+      if (notif.ref_id) {
+        navigate(`/driver/trips/${notif.ref_id}/manage`);
+      } else {
+        navigate('/driver/trips');
+      }
+      return;
     }
 
     if (notif.ref_type === 'TRIP' && notif.ref_id) {
