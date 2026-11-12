@@ -11,6 +11,7 @@ import {
   actor_type,
   fail_reason_code,
   user_role,
+  incident_status,
 } from '@prisma/client';
 import { NotificationService } from '../notification/service.js';
 
@@ -394,6 +395,176 @@ export class SchedulerService {
     return {
       unlockedCount: unlockedIds.length,
       userIds: unlockedIds,
+    };
+  }
+
+  /**
+   * CS-OVERDUE: Xử lý chuyến xe quá giờ khởi hành mà chưa bắt đầu
+   * 1. Đến giờ khởi hành (now >= departure_time) và còn dưới 2h: Gửi thông báo nhắc tài xế
+   * 2. Quá giờ khởi hành 2 tiếng (now >= departure_time + 2h) mà tài xế chưa bấm:
+   *    - Chuyển chuyến sang CANCELLED (hủy của tài xế)
+   *    - Chuyển các yêu cầu của khách sang CANCELLED do sự cố chuyến (không phạt khách)
+   *    - Gửi thông báo sự cố cho khách hàng
+   *    - Tạo bản ghi Sự cố (IncidentReport) gửi Admin làm việc với tài xế
+   *    - Ghi nhận AuditLog hệ thống
+   */
+  static async handleOverdueTrips(now: Date = new Date()) {
+    // 1. Nhắc nhở tài xế khi đến giờ khởi hành (từ mốc departure_time đến departure_time + 2h)
+    const overdue2hThreshold = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+    const tripsToRemind = await prisma.trip.findMany({
+      where: {
+        status: { in: [trip_status.CLOSED, trip_status.OPEN] },
+        departure_time: {
+          lte: now,
+          gt: overdue2hThreshold,
+        },
+      },
+      select: { id: true, code: true, driver_id: true, origin_name: true, dest_name: true },
+    });
+
+    let reminderCount = 0;
+    for (const trip of tripsToRemind) {
+      const alreadyReminded = await prisma.notification.findFirst({
+        where: {
+          user_id: trip.driver_id,
+          type: 'DEPARTURE_REMINDER',
+          ref_type: 'TRIP',
+          ref_id: trip.id,
+        },
+      });
+
+      if (!alreadyReminded) {
+        await prisma.notification.create({
+          data: {
+            user_id: trip.driver_id,
+            type: 'DEPARTURE_REMINDER',
+            content: `Đã đến giờ khởi hành chuyến xe ${trip.code} (${trip.origin_name} → ${trip.dest_name}). Vui lòng bấm 'Bắt đầu hành trình' khi lăn bánh để hành khách nhận thông báo theo dõi.`,
+            ref_type: 'TRIP',
+            ref_id: trip.id,
+          },
+        });
+        reminderCount++;
+      }
+    }
+
+    // 2. Quá giờ khởi hành 2 tiếng mà tài xế vẫn chưa bấm bắt đầu -> Tự động hủy, tạo IncidentReport
+    const tripsToAutoCancel = await prisma.trip.findMany({
+      where: {
+        status: { in: [trip_status.CLOSED, trip_status.OPEN] },
+        departure_time: { lte: overdue2hThreshold },
+      },
+      include: {
+        driver: { select: { id: true, full_name: true, phone: true } },
+        transport_requests: {
+          where: { status: { in: [request_status.ACCEPTED, request_status.PENDING] } },
+          select: { id: true, code: true, user_id: true },
+        },
+      },
+    });
+
+    if (tripsToAutoCancel.length === 0) {
+      return {
+        remindedCount: reminderCount,
+        autoCancelledCount: 0,
+        incidentReportsCreated: 0,
+        trips: [],
+      };
+    }
+
+    // Tìm tài khoản Admin để làm reporter nếu có, hoặc dùng driver_id
+    const adminUser = await prisma.user.findFirst({
+      where: { role: user_role.ADMIN },
+      select: { id: true },
+    });
+
+    const cancelledTripsSummary: Array<{ id: string; code: string; affectedPassengersCount: number }> = [];
+
+    for (const trip of tripsToAutoCancel) {
+      await prisma.$transaction(async (tx) => {
+        // A. Cập nhật chuyến sang CANCELLED
+        await tx.trip.update({
+          where: { id: trip.id },
+          data: {
+            status: trip_status.CANCELLED,
+            cancel_reason: 'Tài xế không khởi hành sau 2 tiếng so với lịch trình đăng ký (Hệ thống tự động hủy và lập hồ sơ sự cố).',
+          },
+        });
+
+        // B. Hủy các yêu cầu của hành khách trên chuyến do tài xế hủy
+        if (trip.transport_requests.length > 0) {
+          const reqIds = trip.transport_requests.map((r) => r.id);
+          await tx.transportRequest.updateMany({
+            where: { id: { in: reqIds } },
+            data: {
+              status: request_status.CANCELLED,
+              cancelled_by: actor_type.DRIVER,
+              counts_toward_cancel_rate: false, // Tuyệt đối không phạt khách hàng
+              cancel_reason: 'Chuyến xe gặp sự cố không thể khởi hành đúng quy định.',
+            },
+          });
+
+          // Gửi thông báo chuyến xe bị sự cố cho từng hành khách
+          for (const req of trip.transport_requests) {
+            await tx.notification.create({
+              data: {
+                user_id: req.user_id,
+                type: 'TRIP_INCIDENT_CANCELLED',
+                content: `Chuyến xe mã ${trip.code} (${trip.origin_name} → ${trip.dest_name}) đã bị hủy do phát sinh sự cố không thể khởi hành. GoX rất tiếc về sự bất tiện này, vui lòng tìm chuyến xe khác hoặc liên hệ bộ phận hỗ trợ.`,
+                ref_type: 'TRIP',
+                ref_id: trip.id,
+              },
+            });
+          }
+        }
+
+        // C. Gửi thông báo cho tài xế
+        await tx.notification.create({
+          data: {
+            user_id: trip.driver_id,
+            type: 'TRIP_AUTO_CANCELLED',
+            content: `Chuyến xe mã ${trip.code} của bạn đã bị hủy do quá 2 tiếng so với giờ khởi hành nhưng chưa bấm bắt đầu. Hệ thống đã lập hồ sơ sự cố chuyển Ban Quản Trị để làm việc và xử lý.`,
+            ref_type: 'TRIP',
+            ref_id: trip.id,
+          },
+        });
+
+        // D. Tự động tạo 1 bản ghi Sự cố (IncidentReport) gửi Admin
+        const depTimeStr = formatInTimeZone(trip.departure_time, VIETNAM_TIMEZONE, 'HH:mm dd/MM/yyyy');
+        await tx.incidentReport.create({
+          data: {
+            reporter_id: adminUser?.id || trip.driver_id,
+            trip_id: trip.id,
+            title: `[SỰ CỐ KHỞI HÀNH] Chuyến xe ${trip.code} không lăn bánh sau 2 giờ`,
+            description: `Chuyến xe mã ${trip.code} của tài xế ${trip.driver.full_name} (SĐT: ${trip.driver.phone}) đăng ký khởi hành lúc ${depTimeStr}. Sau hơn 2 giờ so với lịch trình, tài xế không bấm bắt đầu hành trình. Hệ thống đã tự động hủy chuyến, thông báo sự cố tới ${trip.transport_requests.length} hành khách bị ảnh hưởng và tạo báo cáo sự cố này để Quản trị viên kiểm tra, liên hệ làm việc với tài xế và xem xét chế tài xử lý vi phạm.`,
+            status: incident_status.NOT_RECEIVED,
+          },
+        });
+
+        // E. Ghi nhận AuditLog hệ thống
+        await tx.auditLog.create({
+          data: {
+            actor_type: actor_type.SYSTEM,
+            action: 'AUTO_CANCEL_OVERDUE_TRIP',
+            target_type: 'TRIP',
+            target_id: trip.id,
+            reason: `Chuyến xe ${trip.code} quá 2 giờ so với giờ khởi hành mà chưa bắt đầu. Đã tự động tạo IncidentReport cho Admin.`,
+          },
+        });
+      });
+
+      cancelledTripsSummary.push({
+        id: trip.id.toString(),
+        code: trip.code,
+        affectedPassengersCount: trip.transport_requests.length,
+      });
+    }
+
+    return {
+      remindedCount: reminderCount,
+      autoCancelledCount: cancelledTripsSummary.length,
+      incidentReportsCreated: cancelledTripsSummary.length,
+      trips: cancelledTripsSummary,
     };
   }
 }

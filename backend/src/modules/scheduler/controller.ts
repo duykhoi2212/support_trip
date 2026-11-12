@@ -51,13 +51,34 @@ export class SchedulerController {
   }
 
   /**
+   * Kích hoạt thủ công xử lý chuyến xe quá hạn khởi hành > 2h
+   */
+  static async triggerOverdueTrips(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await SchedulerService.handleOverdueTrips();
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: `Đã nhắc nhở ${result.remindedCount} chuyến, hủy ${result.autoCancelledCount} chuyến quá hạn 2h và tạo ${result.incidentReportsCreated} báo cáo sự cố gửi Admin.`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Lấy trạng thái hoạt động của Scheduler
    */
   static async getStatus(_req: Request, res: Response) {
     res.status(200).json({
       success: true,
       data: {
-        activeJobs: ['CS-01 (Mỗi phút)', 'CS-02 (23:59 CN)', 'CS-03 (Mỗi 10 phút)'],
+        activeJobs: [
+          'CS-01 (Mỗi phút: Đóng chuyến -6h & Hết hạn PENDING)',
+          'CS-OVERDUE (Mỗi phút: Nhắc nhở giờ đi & Hủy chuyến quá hạn 2h tạo sự cố)',
+          'CS-02 (23:59 CN: Chốt tỷ lệ hủy tuần giờ VN)',
+          'CS-03 (Mỗi 10 phút: Mở khóa tài khoản hết hạn phạt 14 ngày)',
+        ],
         timezone: 'Asia/Ho_Chi_Minh',
         timestamp: new Date().toISOString(),
       },

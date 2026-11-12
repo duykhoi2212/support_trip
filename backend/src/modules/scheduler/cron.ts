@@ -10,14 +10,21 @@ export function startCronJobs() {
   stopCronJobs(); // Dọn dẹp task cũ nếu có
 
   // 1. CS-01: Quét đóng chuyến trước 6 giờ & hết hạn PENDING (Chạy mỗi phút)
+  // Kèm theo: Nhắc nhở tài xế đến giờ đi & tự động hủy chuyến quá giờ 2 tiếng
   const taskCloseTrips = cron.schedule('* * * * *', async () => {
     try {
       const res = await SchedulerService.closeTripsBefore6h();
       if (res.closedTripsCount > 0) {
         console.log(`[CS-01] Đã tự động đóng ${res.closedTripsCount} chuyến xe và hết hạn ${res.expiredRequestsCount} yêu cầu.`);
       }
+
+      // Quét nhắc nhở và hủy các chuyến quá hạn khởi hành > 2h
+      const overdueRes = await SchedulerService.handleOverdueTrips();
+      if (overdueRes.autoCancelledCount > 0) {
+        console.log(`[Overdue Trips] Đã tự động hủy ${overdueRes.autoCancelledCount} chuyến xe quá hạn 2h và tạo ${overdueRes.incidentReportsCreated} báo cáo sự cố gửi Admin.`);
+      }
     } catch (error) {
-      console.error('[CS-01] Lỗi khi chạy tác vụ tự động đóng chuyến trước 6h:', error);
+      console.error('[CS-01 / Overdue] Lỗi khi chạy tác vụ tự động đóng chuyến hoặc xử lý chuyến quá hạn:', error);
     }
   });
   tasks.push(taskCloseTrips);
@@ -74,6 +81,11 @@ export async function bootstrapScheduler() {
     const tripRes = await SchedulerService.closeTripsBefore6h();
     if (tripRes.closedTripsCount > 0) {
       console.log(`[Catch-up CS-01] Đã quét bù và đóng ${tripRes.closedTripsCount} chuyến xe quá hạn.`);
+    }
+
+    const overdueRes = await SchedulerService.handleOverdueTrips();
+    if (overdueRes.autoCancelledCount > 0) {
+      console.log(`[Catch-up Overdue] Đã quét bù và tự động hủy ${overdueRes.autoCancelledCount} chuyến xe quá hạn > 2h.`);
     }
 
     const unlockRes = await SchedulerService.unlockExpiredLockedAccounts();

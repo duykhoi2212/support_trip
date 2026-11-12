@@ -32,6 +32,14 @@ describe('Kiểm thử Hệ thống Tác vụ Tự động Ngầm (Giai đoạn 
 
   beforeAll(async () => {
     // 1. Dọn dẹp dữ liệu test cũ nếu có
+    await prisma.incidentReport.deleteMany({
+      where: {
+        OR: [
+          { reporter: { email: { in: [user1Email, user2Email, driverEmail] } } },
+          { trip: { driver: { email: driverEmail } } },
+        ],
+      },
+    });
     await prisma.violation.deleteMany({
       where: { user: { email: { in: [user1Email, user2Email] } } },
     });
@@ -109,6 +117,14 @@ describe('Kiểm thử Hệ thống Tác vụ Tự động Ngầm (Giai đoạn 
 
   afterAll(async () => {
     // Dọn dẹp sau kiểm thử
+    await prisma.incidentReport.deleteMany({
+      where: {
+        OR: [
+          { reporter_id: { in: [driverId, userId1, userId2] } },
+          { trip: { driver_id: driverId } },
+        ],
+      },
+    });
     await prisma.violation.deleteMany({
       where: { user: { email: { in: [user1Email, user2Email] } } },
     });
@@ -457,5 +473,124 @@ describe('Kiểm thử Hệ thống Tác vụ Tự động Ngầm (Giai đoạn 
     });
     expect(unlockNotif).toBeDefined();
     expect(unlockNotif?.content).toContain('tự động mở khóa');
+  });
+
+  it('6. CS-OVERDUE: Quá giờ 2 tiếng tài xế chưa bấm bắt đầu -> Hủy chuyến của tài xế, báo sự cố cho khách và tạo IncidentReport cho Admin', async () => {
+    const now = new Date();
+
+    // 1. Chuyến xe A: Đến giờ khởi hành (now = departure_time + 10 phút) -> Nhắc nhở tài xế
+    const tripRemind = await prisma.trip.create({
+      data: {
+        code: 'TRIP-REMIND1',
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        origin_name: 'Hà Nội',
+        origin_lat: 21.0,
+        origin_lng: 105.8,
+        dest_name: 'Thái Bình',
+        dest_lat: 20.4,
+        dest_lng: 106.3,
+        departure_time: new Date(now.getTime() - 10 * 60 * 1000), // Cách đây 10 phút (< 2h)
+        eta: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+        seats_total: 4,
+        cargo_area_total_m2: 1.0,
+        cargo_weight_total_kg: 100,
+        seats_reserved: 0,
+        cargo_area_reserved_m2: 0,
+        cargo_weight_reserved_kg: 0,
+        status: trip_status.CLOSED,
+      },
+    });
+
+    // 2. Chuyến xe B: Quá giờ khởi hành 2.5 tiếng (now = departure_time + 2.5h) -> Bị hủy và tạo IncidentReport
+    const tripOverdue = await prisma.trip.create({
+      data: {
+        code: 'TRIP-OVERDUE1',
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        origin_name: 'Hà Nội',
+        origin_lat: 21.0,
+        origin_lng: 105.8,
+        dest_name: 'Ninh Bình',
+        dest_lat: 20.2,
+        dest_lng: 105.9,
+        departure_time: new Date(now.getTime() - 2.5 * 60 * 60 * 1000), // Cách đây 2.5 giờ (> 2h)
+        eta: new Date(now.getTime() - 30 * 60 * 1000),
+        seats_total: 4,
+        cargo_area_total_m2: 1.0,
+        cargo_weight_total_kg: 100,
+        seats_reserved: 1,
+        cargo_area_reserved_m2: 0,
+        cargo_weight_reserved_kg: 0,
+        status: trip_status.CLOSED,
+      },
+    });
+
+    // Tạo 1 yêu cầu ACCEPTED của hành khách trên chuyến B
+    const passengerReq = await prisma.transportRequest.create({
+      data: {
+        code: 'REQ-PASS-OVD1',
+        trip_id: tripOverdue.id,
+        user_id: userId1,
+        type: request_type.RIDE,
+        pickup_name: 'Bến xe Nước Ngầm',
+        pickup_lat: 20.97,
+        pickup_lng: 105.83,
+        dropoff_name: 'Ninh Bình',
+        dropoff_lat: 20.25,
+        dropoff_lng: 105.97,
+        passenger_count: 1,
+        status: request_status.ACCEPTED,
+      },
+    });
+
+    // Thực thi xử lý quá hạn
+    const overdueResult = await SchedulerService.handleOverdueTrips(now);
+
+    expect(overdueResult.remindedCount).toBeGreaterThanOrEqual(1);
+    expect(overdueResult.autoCancelledCount).toBeGreaterThanOrEqual(1);
+    expect(overdueResult.incidentReportsCreated).toBeGreaterThanOrEqual(1);
+
+    // Kiểm tra thông báo nhắc nhở gửi cho tài xế của chuyến A
+    const reminderNotif = await prisma.notification.findFirst({
+      where: {
+        user_id: driverId,
+        type: 'DEPARTURE_REMINDER',
+        ref_id: tripRemind.id,
+      },
+    });
+    expect(reminderNotif).toBeDefined();
+    expect(reminderNotif?.content).toContain('Đã đến giờ khởi hành');
+
+    // Kiểm tra chuyến B đã bị chuyển sang CANCELLED
+    const cancelledTripB = await prisma.trip.findUnique({ where: { id: tripOverdue.id } });
+    expect(cancelledTripB?.status).toBe(trip_status.CANCELLED);
+    expect(cancelledTripB?.cancel_reason).toContain('sau 2 tiếng');
+
+    // Kiểm tra yêu cầu của khách trên chuyến B chuyển sang CANCELLED do sự cố và không bị phạt
+    const updatedReq = await prisma.transportRequest.findUnique({ where: { id: passengerReq.id } });
+    expect(updatedReq?.status).toBe(request_status.CANCELLED);
+    expect(updatedReq?.cancelled_by).toBe(actor_type.DRIVER);
+    expect(updatedReq?.counts_toward_cancel_rate).toBe(false); // Không phạt hành khách
+
+    // Kiểm tra hành khách nhận được thông báo chuyến xe gặp sự cố
+    const incidentNotif = await prisma.notification.findFirst({
+      where: {
+        user_id: userId1,
+        type: 'TRIP_INCIDENT_CANCELLED',
+        ref_id: tripOverdue.id,
+      },
+    });
+    expect(incidentNotif).toBeDefined();
+    expect(incidentNotif?.content).toContain('phát sinh sự cố');
+
+    // Kiểm tra đã tự động tạo 1 bản ghi Sự cố (IncidentReport) gửi Admin
+    const incident = await prisma.incidentReport.findFirst({
+      where: { trip_id: tripOverdue.id },
+    });
+    expect(incident).toBeDefined();
+    expect(incident?.title).toContain('[SỰ CỐ KHỞI HÀNH]');
+    expect(incident?.description).toContain('tài xế không bấm bắt đầu hành trình');
+    expect(incident?.status).toBe('NOT_RECEIVED'); // Chờ Admin xử lý
   });
 });

@@ -30,3 +30,10 @@ schedulerRouter.post(
   SchedulerController.triggerUnlockAccounts
 );
 
+schedulerRouter.post(
+  '/trigger/overdue-trips',
+  authenticateToken,
+  requireRole([user_role.ADMIN]),
+  SchedulerController.triggerOverdueTrips
+);
+
