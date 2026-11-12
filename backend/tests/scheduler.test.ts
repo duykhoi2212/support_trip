@@ -117,35 +117,40 @@ describe('Kiểm thử Hệ thống Tác vụ Tự động Ngầm (Giai đoạn 
 
   afterAll(async () => {
     // Dọn dẹp sau kiểm thử
-    await prisma.incidentReport.deleteMany({
-      where: {
-        OR: [
-          { reporter_id: { in: [driverId, userId1, userId2] } },
-          { trip: { driver_id: driverId } },
-        ],
-      },
-    });
-    await prisma.violation.deleteMany({
-      where: { user: { email: { in: [user1Email, user2Email] } } },
-    });
-    await prisma.auditLog.deleteMany({
-      where: { target_id: { in: [userId1, userId2] } },
-    });
-    await prisma.notification.deleteMany({
-      where: { user_id: { in: [userId1, userId2, driverId] } },
-    });
-    await prisma.transportRequest.deleteMany({
-      where: { user_id: { in: [userId1, userId2] } },
-    });
-    await prisma.trip.deleteMany({
-      where: { driver_id: driverId },
-    });
-    await prisma.vehicle.deleteMany({
-      where: { driver_id: driverId },
-    });
-    await prisma.user.deleteMany({
-      where: { id: { in: [driverId, userId1, userId2] } },
-    });
+    const userIds = [driverId, userId1, userId2].filter((id): id is bigint => Boolean(id));
+    if (userIds.length > 0) {
+      await prisma.incidentReport.deleteMany({
+        where: {
+          OR: [
+            { reporter_id: { in: userIds } },
+            ...(driverId ? [{ trip: { driver_id: driverId } }] : []),
+          ],
+        },
+      });
+      await prisma.violation.deleteMany({
+        where: { user_id: { in: userIds } },
+      });
+      await prisma.auditLog.deleteMany({
+        where: { target_id: { in: userIds } },
+      });
+      await prisma.notification.deleteMany({
+        where: { user_id: { in: userIds } },
+      });
+      await prisma.transportRequest.deleteMany({
+        where: { user_id: { in: userIds } },
+      });
+      if (driverId) {
+        await prisma.trip.deleteMany({
+          where: { driver_id: driverId },
+        });
+        await prisma.vehicle.deleteMany({
+          where: { driver_id: driverId },
+        });
+      }
+      await prisma.user.deleteMany({
+        where: { id: { in: userIds } },
+      });
+    }
   });
 
   it('1. CS-01: Quét đóng chuyến trước 6 giờ (departure_time <= now + 6h) & chuyển PENDING sang EXPIRED', async () => {
