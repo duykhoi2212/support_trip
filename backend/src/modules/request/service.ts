@@ -5,6 +5,7 @@ import {
   package_status,
   trip_status,
   actor_type,
+  fail_reason_code,
 } from '@prisma/client';
 import { prisma } from '../../utils/prisma.js';
 import { AppError } from '../../middlewares/errorHandler.js';
@@ -779,6 +780,54 @@ export class RequestService {
           userId: request.user_id,
           type: 'PROGRESS_UPDATE',
           content: msg,
+          refType: 'TRIP',
+          refId: request.trip_id,
+        });
+
+        return {
+          ...updated,
+          id: updated.id.toString(),
+          trip_id: updated.trip_id.toString(),
+          user_id: updated.user_id.toString(),
+        };
+      }
+
+      // 3. Trường hợp chuyến/yêu cầu bị thất bại (FAILED do khách vắng mặt, sai thông tin, không liên lạc được...)
+      if (input.fail_reason_code) {
+        const countsToward = input.fail_reason_code !== fail_reason_code.OTHER;
+        const updated = await tx.transportRequest.update({
+          where: { id: requestId },
+          data: {
+            status: request_status.FAILED,
+            fail_reason_code: input.fail_reason_code,
+            counts_toward_cancel_rate: countsToward,
+          },
+        });
+
+        // Hoàn trả sức chứa xe nguyên tử
+        if (request.type === request_type.RIDE) {
+          const seats = request.passenger_count || 1;
+          await tx.trip.update({
+            where: { id: request.trip_id },
+            data: { seats_reserved: { decrement: seats } },
+          });
+        } else {
+          const totalArea = request.package_items.reduce((s, p) => s + p.area_m2, 0);
+          const totalWeight = request.package_items.reduce((s, p) => s + p.weight_kg, 0);
+          await tx.trip.update({
+            where: { id: request.trip_id },
+            data: {
+              cargo_area_reserved_m2: { decrement: totalArea },
+              cargo_weight_reserved_kg: { decrement: totalWeight },
+            },
+          });
+        }
+
+        // Gửi thông báo cho khách hàng
+        await NotificationService.createNotification({
+          userId: request.user_id,
+          type: 'REQUEST_FAILED',
+          content: `Yêu cầu ${request.code} trên chuyến ${request.trip.code} đã bị đánh dấu không hoàn thành. Lý do: ${input.fail_reason_code}`,
           refType: 'TRIP',
           refId: request.trip_id,
         });

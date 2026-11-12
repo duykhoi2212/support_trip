@@ -16,8 +16,8 @@ Trạng thái ký hiệu:
 | **Giai đoạn 2** | Auth + Phân quyền (requireRole) + Hồ sơ cá nhân + Quên mật khẩu (CM-01..03) | 🟢 **Đã hoàn thành** | Ngày 2 |
 | **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟢 **Đã hoàn thành** | Ngày 3 |
 | **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟢 **Đã hoàn thành** | Ngày 4 |
-| **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🟡 Kế tiếp | Ngày 5 |
-| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🔴 Chưa làm | Ngày 6 |
+| **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🟢 **Đã hoàn thành** | Ngày 5 |
+| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🟡 Kế tiếp | Ngày 6 |
 | **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🔴 Chưa làm | Ngày 7 |
 
 ---
@@ -59,15 +59,27 @@ Trạng thái ký hiệu:
 ### 2.5. Cơ chế Hệ thống Tự động (System - CS)
 | Mã | Tên cơ chế | Trạng thái | Test Unit/Integration | Cron Job | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| `CS-01` | Đóng chuyến -6h & Hết hạn yêu cầu PENDING | 🔴 Chưa làm | `[ ]` | `[ ]` | Quét mỗi phút + chạy bù khi reboot |
-| `CS-02` | Chốt tỷ lệ hủy tuần (T2-CN, giờ VN) & Khóa tài khoản | 🔴 Chưa làm | `[x]` Unit test | `[ ]` | Tỷ lệ > 5%: lần 1 khóa 2 tuần, lần 2 khóa vĩnh viễn |
-| `CS-03` | Tự động mở khóa tài khoản LOCKED_TEMP sau 14 ngày | 🔴 Chưa làm | `[ ]` | `[ ]` | Quét định kỳ hằng giờ |
-| `CS-04` | Kiểm tra sức chứa & Chống chồng lịch nguyên tử | 🔴 Chưa làm | `[x]` Unit test | `[ ]` | Transaction + SELECT FOR UPDATE |
+| `CS-01` | Đóng chuyến -6h & Hết hạn yêu cầu PENDING | 🟢 Đã xong | `[x]` | `[x]` | Quét mỗi phút + chạy bù khi reboot |
+| `CS-02` | Chốt tỷ lệ hủy tuần (T2-CN, giờ VN) & Khóa tài khoản | 🟢 Đã xong | `[x]` | `[x]` | Tỷ lệ > 5%: lần 1 khóa 2 tuần, lần 2 khóa vĩnh viễn |
+| `CS-03` | Tự động mở khóa tài khoản LOCKED_TEMP sau 14 ngày | 🟢 Đã xong | `[x]` | `[x]` | Quét định kỳ hằng giờ + chạy bù khi reboot |
+| `CS-04` | Kiểm tra sức chứa & Chống chồng lịch nguyên tử | 🟢 Đã xong | `[x]` | `[x]` | Transaction + SELECT FOR UPDATE |
 | `CS-05` | Dự phòng khi AI / Map gặp lỗi | 🔴 Chưa làm | `[ ]` | `[ ]` | Map lỗi: chặn tạo chuyến & thông báo; AI lỗi: fallback bộ lọc |
 
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-12 (Giai đoạn 5 - HOÀN THÀNH TOÀN DIỆN)**:
+  - Hoàn thành module Tác vụ Tự động Ngầm (`scheduler`): Tích hợp `node-cron` và tính toán chuẩn múi giờ Việt Nam (`Asia/Ho_Chi_Minh`) bằng `date-fns-tz`.
+  - Thực thi cơ chế `CS-01`: Quét tự động mỗi phút (cron `* * * * *`) đóng chuyến xe khi thời gian khởi hành $\le \text{now} + 6\text{h}$, tự động chuyển tất cả yêu cầu `PENDING` thành `EXPIRED` và gửi thông báo in-app cho cả tài xế và hành khách.
+  - Thực thi cơ chế `CS-02`: Chốt tỷ lệ hủy tuần (chạy 23:59 Chủ Nhật giờ VN cho tuần T2-CN):
+    - Tính mẫu số (tổng yêu cầu đã được xác nhận, loại trừ chuyến bị tài xế hủy).
+    - Tính tử số (hủy sau khi duyệt, failed do lỗi khách: `WRONG_INFO`, `UNREACHABLE`, `ABSENT`).
+    - Nếu tỷ lệ hủy $> 5\%$: Xử phạt vi phạm lần 1 tạm khóa 14 ngày (`LOCKED_TEMP`), tái phạm lần 2 khóa vĩnh viễn (`LOCKED_PERM`), ghi nhận `AuditLog` hệ thống và gửi thông báo.
+  - Thực thi cơ chế `CS-03`: Tự động mở khóa tài khoản `LOCKED_TEMP` sau 14 ngày (quét định kỳ mỗi 10 phút), phục hồi trạng thái `ACTIVE`, ghi `AuditLog` và gửi thông báo mở khóa.
+  - Tích hợp cơ chế Chạy bù (Catch-up Bootstrap) trong `server.ts` tự động bù đắp các chuyến xe quá hạn -6h và mở khóa tài khoản khi server khởi động lại.
+  - Cung cấp API Controller & Routes `/api/scheduler` cho phép kiểm tra trạng thái và kích hoạt thủ công tác vụ ngầm.
+  - Nâng cấp trải nghiệm tài xế: Nhấp thông báo chuyển hướng tức thì sang trang điều hành chuyến `/driver/trips/:id/manage`, bổ sung ảnh chụp kiện hàng trực quan, modal xem chi tiết yêu cầu toàn diện và xem ảnh phóng to.
+  - Viết 5 integration tests toàn diện cho Scheduler: Toàn bộ **56/56 vitest tests passed 100%** trên CSDL Neon Cloud.
 - **2026-11-10 (Giai đoạn 4 - HOÀN THÀNH TOÀN DIỆN)**:
   - Hoàn thành module Yêu cầu vận chuyển (`US-01`): Khách đặt đi nhờ xe (RIDE) hoặc gửi hàng (PACKAGE).
   - Tích hợp kiểm tra trắc địa Turf.js điểm đón/trả phải nằm trong bán kính $\le 2\text{km}$ so với tọa độ uốn lượn thực tế của xe (`route_polyline`).

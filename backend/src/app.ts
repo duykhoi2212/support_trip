@@ -9,6 +9,7 @@ import { tripRouter } from './modules/trip/routes.js';
 import { mapRouter } from './modules/map/routes.js';
 import requestRouter from './modules/request/routes.js';
 import notificationRouter from './modules/notification/routes.js';
+import { schedulerRouter } from './modules/scheduler/routes.js';
 import { uploadDir } from './modules/file-storage/multer.js';
 
 export const app = express();
@@ -41,6 +42,7 @@ app.use('/api/trips', tripRouter);
 app.use('/api/map', mapRouter);
 app.use('/api/requests', requestRouter);
 app.use('/api/notifications', notificationRouter);
+app.use('/api/scheduler', schedulerRouter);
 
 // Centralized error handler
 app.use(errorHandler);
