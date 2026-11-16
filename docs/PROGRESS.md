@@ -17,8 +17,8 @@ Trạng thái ký hiệu:
 | **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟢 **Đã hoàn thành** | Ngày 3 |
 | **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟢 **Đã hoàn thành** | Ngày 4 |
 | **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🟢 **Đã hoàn thành** | Ngày 5 |
-| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🟡 Kế tiếp | Ngày 6 |
-| **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🔴 Chưa làm | Ngày 7 |
+| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🟢 **Đã hoàn thành** | Ngày 6 |
+| **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🟡 **Kế tiếp (Chặng cuối)** | Ngày 7 |
 
 ---
 
@@ -52,9 +52,9 @@ Trạng thái ký hiệu:
 ### 2.4. Chức năng Quản trị viên (Admin - AD)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| `AD-01` | Quản lý tài khoản & Mở khóa tài khoản | 🔴 Chưa làm | `[ ]` | `[ ]` | Bắt buộc nhập lý do, ghi audit_logs, đổi REVOKED |
-| `AD-02` | Quản lý và xử lý sự cố (4 trạng thái) | 🔴 Chưa làm | `[ ]` | `[ ]` | Không nhảy cóc, gửi notification mỗi lần đổi |
-| `AD-03` | Thống kê chuyến theo ngày (Hoạt động / Kết thúc) | 🔴 Chưa làm | `[ ]` | `[ ]` | Bộ lọc theo ngày, xem chi tiết từng chuyến |
+| `AD-01` | Quản lý tài khoản & Mở khóa tài khoản | 🟢 Đã xong | `[x]` | `[x]` | Bắt buộc nhập lý do (>=10 ký tự), ghi audit_logs, đổi REVOKED vi phạm |
+| `AD-02` | Quản lý và xử lý sự cố (4 trạng thái) | 🟢 Đã xong | `[x]` | `[x]` | Không nhảy cóc: NOT_RECEIVED -> RECEIVED -> PROCESSING -> RESOLVED, gửi notification |
+| `AD-03` | Thống kê chuyến theo ngày (Hoạt động / Kết thúc) | 🟢 Đã xong | `[x]` | `[x]` | Bộ lọc theo ngày/tuần/tháng, xem chi tiết từng chuyến, KPI tổng quan |
 
 ### 2.5. Cơ chế Hệ thống Tự động (System - CS)
 | Mã | Tên cơ chế | Trạng thái | Test Unit/Integration | Cron Job | Ghi chú & Commit |
@@ -68,6 +68,21 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-16 (Giai đoạn 6 - CHẶNG 3: HỆ THỐNG QUẢN TRỊ VIÊN ADMIN DASHBOARD - AD-01, AD-02, AD-03)**:
+  - **AD-01: Quản lý & Mở khóa tài khoản**:
+    - Backend: Xây dựng `AdminService.getUsers` và `AdminService.unlockUser` với bộ lọc vai trò, trạng thái vi phạm, từ khóa.
+    - Cơ chế mở khóa kiểm toán: Bắt buộc Admin nhập lý do giải trình ($\ge 10$ ký tự), chuyển trạng thái `User.status = 'ACTIVE'`, thu hồi vi phạm `Violation.status = 'REVOKED'`, ghi vết vào `audit_logs` (`UNLOCK_ACCOUNT`) và gửi `Notification` thông báo cho người dùng.
+    - Frontend: Trang `/admin/users` với giao diện bảng hiện đại, bộ lọc trực quan, thẻ trạng thái, thông tin chi tiết vi phạm và modal mở khóa tài khoản.
+  - **AD-02: Quy trình Xử lý Sự cố 4 bước chuẩn mực**:
+    - Backend: Xây dựng `AdminService.getIncidents` và `AdminService.updateIncidentStatus`.
+    - Máy trạng thái nghiêm ngặt (chống nhảy cóc): `NOT_RECEIVED` ➔ `RECEIVED` ➔ `PROCESSING` ➔ `RESOLVED`.
+    - Tự động ghi nhận `handled_by`, `result_note` và gửi thông báo tiến trình cho người báo cáo qua từng bước.
+    - Frontend: Trang `/admin/incidents` với thanh tiến trình 4 bước trực quan, bộ lọc tabs theo trạng thái, modal nhập kết luận giải quyết sự cố.
+  - **AD-03: Thống kê & Báo cáo Vận hành Chuyến xe theo Ngày**:
+    - Backend: Xây dựng `AdminService.getStatisticsOverview` và `AdminService.getTripsByDate` tính toán các KPI vận hành: tổng chuyến, hoàn thành, hủy, tỷ lệ hủy (%), tổng lượt phục vụ, tổng chi phí nhiên liệu/sạc chia sẻ và tiến trình phân rã theo ngày.
+    - Frontend: Trang `/admin/statistics` với 4 thẻ KPI Dashboard, biểu đồ thanh tỷ lệ theo ngày (`daily_breakdown`) và bảng tra cứu chuyến xe chi tiết theo từng ngày (kèm thông tin tài xế, xe, số khách, lộ trình và chi phí nhiên liệu).
+  - **Điều hướng & Phân quyền**: Đăng ký các tuyến đường bảo vệ `ADMIN` trong `App.tsx`, liên kết trực tiếp trên Navbar và Profile Dropdown.
+  - **Kiểm thử**: Viết mới `backend/tests/admin-dashboard.test.ts` (11 tests). Toàn bộ **79/79 Vitest tests passed 100%** trên CSDL Neon Cloud. Build Frontend & Backend đạt **0 lỗi**.
 - **2026-11-16 (Giai đoạn 6 - CHẶNG 2: TÌM KIẾM AI GEMINI (US-02), DỰ PHÒNG CS-05 & HỆ THỐNG LỊCH SỬ CHUYẾN XE)**:
   - **AI Adapter Gemini (`US-02`)**: Tích hợp `backend/src/adapters/ai/gemini.ts` kết nối Google Gemini API (`gemini-1.5-flash`), phân tích câu tự nhiên tiếng Việt bóc tách điểm xuất phát, điểm đến, ngày giờ và số người/kiện hàng.
   - **Cơ chế Dự phòng Thông minh (`CS-05`)**: Tích hợp Regex Fallback Engine xử lý mượt mà khi API key thiếu/lỗi/hết quota, tự động bóc tách từ khóa mà không làm gián đoạn trải nghiệm người dùng.

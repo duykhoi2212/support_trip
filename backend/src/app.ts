@@ -11,6 +11,7 @@ import requestRouter from './modules/request/routes.js';
 import notificationRouter from './modules/notification/routes.js';
 import { schedulerRouter } from './modules/scheduler/routes.js';
 import { incidentRouter } from './modules/incident/routes.js';
+import { adminRouter } from './modules/admin/routes.js';
 import { uploadDir } from './modules/file-storage/multer.js';
 
 export const app = express();
@@ -45,6 +46,7 @@ app.use('/api/requests', requestRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/scheduler', schedulerRouter);
 app.use('/api/incidents', incidentRouter);
+app.use('/api/admin', adminRouter);
 
 // Centralized error handler
 app.use(errorHandler);

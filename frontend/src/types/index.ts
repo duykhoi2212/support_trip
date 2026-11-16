@@ -236,3 +236,122 @@ export interface UserHistoryResponse {
   requests: TransportRequest[];
   stats: UserHistoryStats;
 }
+
+// -------------------------------------------------------------
+// QUẢN TRỊ VIÊN (ADMIN DASHBOARD)
+// -------------------------------------------------------------
+export type IncidentStatus = 'NOT_RECEIVED' | 'RECEIVED' | 'PROCESSING' | 'RESOLVED';
+
+export interface AdminViolation {
+  id: string;
+  week_start: string;
+  confirmed_count: number;
+  cancelled_count: number;
+  cancel_rate: number;
+  lock_type: string;
+  lock_until?: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  phone: string;
+  email: string;
+  full_name: string;
+  avatar_url?: string | null;
+  role: UserRole;
+  status: AccountStatus;
+  locked_until?: string | null;
+  created_at: string;
+  violations: AdminViolation[];
+  _count: {
+    trips: number;
+    transport_requests: number;
+    violations: number;
+  };
+}
+
+export interface AdminIncident {
+  id: string;
+  reporter_id: string;
+  trip_id?: string | null;
+  request_id?: string | null;
+  title: string;
+  description: string;
+  status: IncidentStatus;
+  handled_by?: string | null;
+  result_note?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  reporter: {
+    id: string;
+    full_name: string;
+    phone: string;
+    email: string;
+    role: UserRole;
+    avatar_url?: string | null;
+  };
+  handler?: {
+    id: string;
+    full_name: string;
+    phone: string;
+    email: string;
+  } | null;
+  trip?: {
+    id: string;
+    code: string;
+    origin_name: string;
+    dest_name: string;
+    departure_time: string;
+    status: TripStatus;
+  } | null;
+  transport_request?: {
+    id: string;
+    code: string;
+    type: RequestType;
+    status: RequestStatus;
+  } | null;
+}
+
+export interface AdminStatsOverview {
+  kpi: {
+    trips: {
+      total: number;
+      open: number;
+      in_progress: number;
+      completed: number;
+      cancelled: number;
+      cancel_rate_percent: number;
+    };
+    requests: {
+      total: number;
+      completed: number;
+      cancelled: number;
+    };
+    impact: {
+      total_passengers_served: number;
+      total_shared_fuel_cost: number;
+    };
+    incidents: {
+      total: number;
+      not_received: number;
+      received: number;
+      processing: number;
+      resolved: number;
+    };
+  };
+  daily_breakdown: Array<{
+    date: string;
+    total: number;
+    completed: number;
+    cancelled: number;
+    in_progress: number;
+    passengers: number;
+  }>;
+  date_range: {
+    from: string;
+    to: string;
+  };
+}
+

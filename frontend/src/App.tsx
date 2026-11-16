@@ -16,6 +16,9 @@ import { TripDetails } from './pages/trip/TripDetails';
 import { MyRequests } from './pages/user/MyRequests';
 import { UserHistory } from './pages/user/UserHistory';
 import { DriverHistory } from './pages/driver/DriverHistory';
+import { UserManagement } from './pages/admin/UserManagement';
+import { IncidentManagement } from './pages/admin/IncidentManagement';
+import { TripStatistics } from './pages/admin/TripStatistics';
 import { Notifications } from './pages/notification/Notifications';
 
 // Trang chủ thông minh theo vai trò
@@ -23,6 +26,9 @@ const HomeRoute = () => {
   const { user } = useAuth();
   if (user?.role === 'DRIVER') {
     return <Navigate to="/driver/trips" replace />;
+  }
+  if (user?.role === 'ADMIN') {
+    return <Navigate to="/admin/users" replace />;
   }
   return <SearchTrips />;
 };
@@ -124,6 +130,34 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={['DRIVER']}>
                     <TripOperation />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Tuyến đường Quản trị viên (Admin Dashboard: AD-01, AD-02, AD-03) */}
+              <Route
+                path="/admin/users"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <UserManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/incidents"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <IncidentManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/statistics"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <TripStatistics />
                   </ProtectedRoute>
                 }
               />

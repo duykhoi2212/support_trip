@@ -10,7 +10,9 @@ import {
   CheckCheck,
   Package,
   ArrowRight,
-  Clock
+  Clock,
+  AlertTriangle,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { notificationService } from '../../services/notificationService';
@@ -216,14 +218,14 @@ export const Navbar = () => {
 
           {user?.role === 'ADMIN' && (
             <>
-              <Link to="/admin/users" className="hover:text-emerald-600 transition-colors">
-                Tài khoản
+              <Link to="/admin/users" className="hover:text-emerald-600 transition-colors font-medium">
+                Quản lý tài khoản
               </Link>
-              <Link to="/admin/incidents" className="hover:text-emerald-600 transition-colors">
-                Sự cố
+              <Link to="/admin/incidents" className="hover:text-emerald-600 transition-colors font-medium">
+                Xử lý sự cố
               </Link>
-              <Link to="/admin/statistics" className="hover:text-emerald-600 transition-colors">
-                Thống kê
+              <Link to="/admin/statistics" className="hover:text-emerald-600 transition-colors font-medium">
+                Thống kê vận hành
               </Link>
             </>
           )}
@@ -417,6 +419,32 @@ export const Navbar = () => {
                         >
                           <Clock className="w-4 h-4" />
                           <span>Lịch sử chuyến xe</span>
+                        </Link>
+                      </>
+                    )}
+
+                    {user.role === 'ADMIN' && (
+                      <>
+                        <Link
+                          to="/admin/users"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Shield className="w-4 h-4 text-emerald-600" />
+                          <span>Quản lý tài khoản</span>
+                        </Link>
+                        <Link
+                          to="/admin/incidents"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          <span>Xử lý sự cố</span>
+                        </Link>
+                        <Link
+                          to="/admin/statistics"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <BarChart3 className="w-4 h-4 text-blue-600" />
+                          <span>Thống kê vận hành</span>
                         </Link>
                       </>
                     )}
