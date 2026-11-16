@@ -471,6 +471,14 @@ export const TripOperation: React.FC = () => {
       {/* TAB 2: DANH SÁCH ĐÃ CHẤP NHẬN & ĐIỀU HÀNH TIẾN TRÌNH */}
       {activeTab === 'onboard' && (
         <div className="space-y-4">
+          {trip.status !== 'IN_PROGRESS' && trip.status !== 'COMPLETED' && onboardRequests.length > 0 && (
+            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>
+                <strong>Lưu ý:</strong> Vui lòng bấm <strong>"Bắt đầu hành trình"</strong> ở góc trên khi xe xuất phát. Sau khi bắt đầu hành trình, hệ thống sẽ chốt mức chia sẻ nhiên liệu cho từng yêu cầu và kích hoạt các nút "Đã đón khách" / "Đã nhận hàng".
+              </span>
+            </div>
+          )}
           {onboardRequests.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-500 text-xs shadow-sm">
               Chưa có hành khách hoặc kiện hàng nào được chấp nhận trên chuyến xe.
@@ -583,8 +591,8 @@ export const TripOperation: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Hiển thị mức hỗ trợ nhiên liệu/sạc chia sẻ khi chuyến đã bắt đầu */}
-                    {req.shared_fuel_cost !== undefined && req.shared_fuel_cost !== null && req.shared_fuel_cost > 0 && (
+                    {/* Hiển thị mức hỗ trợ nhiên liệu/sạc chia sẻ: Chỉ hiển thị khi tài xế bấm Bắt đầu hành trình */}
+                    {(trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED') && req.shared_fuel_cost !== undefined && req.shared_fuel_cost !== null && req.shared_fuel_cost > 0 && (
                       <div className="inline-flex items-center px-3 py-1.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-semibold">
                         <Fuel className="w-3.5 h-3.5 mr-1.5 text-teal-600 flex-shrink-0" />
                         <span>Hỗ trợ nhiên liệu/sạc chia sẻ: <strong className="font-bold text-teal-950">{req.shared_fuel_cost.toLocaleString('vi-VN')} đ</strong></span>
@@ -610,9 +618,14 @@ export const TripOperation: React.FC = () => {
                         {req.ride_progress === 'NOT_PICKED_UP' && (
                           <button
                             type="button"
-                            disabled={actionLoadingId === req.id}
+                            disabled={trip.status !== 'IN_PROGRESS' || actionLoadingId === req.id}
                             onClick={() => handleUpdateProgress(req.id, { ride_progress: 'PICKED_UP' })}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-sm transition-colors"
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                              trip.status === 'IN_PROGRESS'
+                                ? 'text-white bg-amber-500 hover:bg-amber-600 shadow-sm cursor-pointer'
+                                : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed opacity-70'
+                            }`}
+                            title={trip.status !== 'IN_PROGRESS' ? "Vui lòng bấm 'Bắt đầu hành trình' trước khi đón khách" : "Xác nhận đã đón khách lên xe"}
                           >
                             Đã đón khách lên xe
                           </button>
@@ -636,9 +649,14 @@ export const TripOperation: React.FC = () => {
                         {req.package_items[0].status === 'AWAITING_PICKUP' && (
                           <button
                             type="button"
-                            disabled={actionLoadingId === req.id}
+                            disabled={trip.status !== 'IN_PROGRESS' || actionLoadingId === req.id}
                             onClick={() => handleUpdateProgress(req.id, { package_status: 'PICKED_UP' })}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-sm transition-colors"
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                              trip.status === 'IN_PROGRESS'
+                                ? 'text-white bg-amber-500 hover:bg-amber-600 shadow-sm cursor-pointer'
+                                : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed opacity-70'
+                            }`}
+                            title={trip.status !== 'IN_PROGRESS' ? "Vui lòng bấm 'Bắt đầu hành trình' trước khi nhận hàng" : "Xác nhận đã nhận hàng vào cốp"}
                           >
                             Đã nhận hàng vào cốp
                           </button>
@@ -860,8 +878,8 @@ export const TripOperation: React.FC = () => {
                 </div>
               )}
 
-              {/* Mức hỗ trợ chi phí nhiên liệu/sạc chia sẻ */}
-              {selectedDetailReq.shared_fuel_cost !== undefined && selectedDetailReq.shared_fuel_cost !== null && selectedDetailReq.shared_fuel_cost > 0 && (
+              {/* Mức hỗ trợ chi phí nhiên liệu/sạc chia sẻ (chỉ hiển thị khi đã bấm Bắt đầu hành trình) */}
+              {(trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED') && selectedDetailReq.shared_fuel_cost !== undefined && selectedDetailReq.shared_fuel_cost !== null && selectedDetailReq.shared_fuel_cost > 0 ? (
                 <div className="p-3.5 bg-teal-50 rounded-2xl border border-teal-200 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-teal-900 flex items-center">
@@ -873,10 +891,14 @@ export const TripOperation: React.FC = () => {
                     </strong>
                   </div>
                   <p className="text-[11px] text-teal-700 mt-1 italic">
-                    (Chia đều cho mọi thành viên tham gia chuyến xe khi tài xế bắt đầu hành trình)
+                    (Đã chốt và chia đều khi tài xế bấm "Bắt đầu hành trình")
                   </p>
                 </div>
-              )}
+              ) : trip.status !== 'IN_PROGRESS' && trip.status !== 'COMPLETED' ? (
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 italic">
+                  💡 Chi phí hỗ trợ nhiên liệu/sạc từ khách sẽ được hệ thống tính toán và hiển thị tại đây khi bạn bấm "Bắt đầu hành trình".
+                </div>
+              ) : null}
             </div>
 
             {/* Footer Modal: Actions */}

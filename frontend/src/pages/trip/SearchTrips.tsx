@@ -635,14 +635,14 @@ export const SearchTrips: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Chi phí nhiên liệu chia sẻ ước tính */}
+                  {/* Chi phí nhiên liệu cho chuyến xe */}
                   {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
                     <div className="mt-2 p-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs flex items-center justify-between">
                       <span className="text-[11px] text-emerald-800 font-medium">
-                        Hỗ trợ {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'}:
+                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} cho chuyến xe:
                       </span>
                       <strong className="text-emerald-900 font-extrabold text-xs">
-                        ~{Math.round(trip.estimated_fuel_cost / Math.max(1, (trip.seats_reserved + 1))).toLocaleString('vi-VN')} đ/người
+                        {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
                       </strong>
                     </div>
                   )}

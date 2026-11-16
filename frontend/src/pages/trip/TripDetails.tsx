@@ -19,7 +19,7 @@ import {
 import { tripService } from '../../services/tripService';
 import { requestService } from '../../services/requestService';
 import { useAuth } from '../../context/AuthContext';
-import { Trip } from '../../types';
+import { Trip, TransportRequest } from '../../types';
 import { RouteMap } from '../../components/map/RouteMap';
 
 export const TripDetails: React.FC = () => {
@@ -28,6 +28,7 @@ export const TripDetails: React.FC = () => {
   const { user } = useAuth();
 
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [userRequest, setUserRequest] = useState<TransportRequest | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +54,7 @@ export const TripDetails: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Lấy dữ liệu chuyến xe
+  // Lấy dữ liệu chuyến xe & Yêu cầu của user (nếu có)
   useEffect(() => {
     if (!id) return;
     const fetchTrip = async () => {
@@ -61,6 +62,23 @@ export const TripDetails: React.FC = () => {
         setLoading(true);
         const data = await tripService.getTripById(id);
         setTrip(data);
+
+        // Nếu đã đăng nhập, kiểm tra xem user có yêu cầu được duyệt trên chuyến xe này không
+        if (localStorage.getItem('token')) {
+          try {
+            const myRequests = await requestService.getMyRequests();
+            const matched = myRequests.find(
+              (r) =>
+                r.trip_id.toString() === id.toString() &&
+                (r.status === 'ACCEPTED' || r.status === 'COMPLETED')
+            );
+            if (matched) {
+              setUserRequest(matched);
+            }
+          } catch (e) {
+            // Không chặn trang nếu gọi myRequests lỗi
+          }
+        }
       } catch (err: any) {
         setError(err.response?.data?.error?.message || err.message || 'Không thể tải thông tin chuyến xe.');
       } finally {
@@ -392,14 +410,14 @@ export const TripDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Chi phí nhiên liệu/sạc: Phân biệt khi đã khởi hành vs khi đang nhận yêu cầu */}
+            {/* Chi phí nhiên liệu/sạc: Phân biệt khi đã khởi hành vs khi chuyến chưa khởi hành */}
             {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
               trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED' ? (
-                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
-                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} chính thức
+                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} chuyến xe
                       </span>
                       <p className="text-xs text-slate-600 mt-0.5">
                         Chuyến xe đã khởi hành • Lộ trình {trip.distance_km} km
@@ -412,14 +430,31 @@ export const TripDetails: React.FC = () => {
                       <span className="text-[10px] text-slate-500 block">toàn chuyến xe</span>
                     </div>
                   </div>
-                  <div className="mt-2.5 pt-2.5 border-t border-emerald-200 text-xs text-emerald-950 flex items-center justify-between">
-                    <span>Mức chia sẻ chính thức mỗi suất:</span>
-                    <strong className="text-emerald-800 font-extrabold text-sm">
-                      {Math.round(trip.estimated_fuel_cost / Math.max(1, trip.seats_reserved)).toLocaleString('vi-VN')} đ / người
-                    </strong>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed italic">
-                    * Chi phí chia sẻ thực tế đã được hệ thống chốt khi xe khởi hành (hành khách tự nguyện gửi tài xế khi đến nơi). Đặt 2 người tính x2.
+
+                  {userRequest && userRequest.shared_fuel_cost !== undefined && userRequest.shared_fuel_cost !== null && userRequest.shared_fuel_cost > 0 ? (
+                    <div className="p-3 bg-white rounded-xl border border-emerald-200/80 shadow-xs flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-emerald-900 block">
+                          Khoản hỗ trợ của bạn ({userRequest.type === 'RIDE' ? `${userRequest.passenger_count || 1} người` : '1 kiện hàng'}):
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          Đã chia đều cho các thành viên tham gia khi xe khởi hành
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-base font-black text-emerald-700">
+                          {userRequest.shared_fuel_cost.toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-white/70 rounded-xl border border-emerald-100 text-xs text-slate-600">
+                      💡 Chi phí nhiên liệu/sạc đã được hệ thống tính toán và chia đều cho từng người tham gia khi tài xế bấm "Bắt đầu hành trình".
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                    * Chi phí chia sẻ thực tế đã được hệ thống chốt khi xe khởi hành. Khoản đóng góp tự nguyện gửi trực tiếp cho tài xế khi đến nơi.
                   </p>
                 </div>
               ) : (
@@ -427,7 +462,7 @@ export const TripDetails: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
-                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} dự kiến
+                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} cho chuyến xe
                       </span>
                       <p className="text-xs text-slate-600 mt-0.5">
                         Toàn bộ hành trình {trip.distance_km} km theo định mức tiêu hao
@@ -441,7 +476,7 @@ export const TripDetails: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-xs text-emerald-900 mt-2.5 pt-2.5 border-t border-emerald-200/60 leading-relaxed">
-                    💡 <strong>Cơ chế chia sẻ tự nguyện:</strong> Số tiền hỗ trợ nhiên liệu/sạc cho từng người sẽ được hệ thống tính toán và chốt chính xác khi tài xế nhấn nút khởi hành (chia đều toàn bộ chi phí theo tổng số người tham gia thực tế trên xe; người đi 2 người sẽ tính x2).
+                    💡 <strong>Cơ chế chia sẻ tự nguyện:</strong> Khi chuyến xe chưa khởi hành, hệ thống chỉ hiển thị tổng chi phí nhiên liệu/sạc cho chuyến xe đó. Khoản chi phí hỗ trợ của mỗi người chỉ được tính và chốt khi tài xế bấm nút "Bắt đầu hành trình" (chi phí chia đều theo tổng số người tham gia thực tế trên xe; người đi 3 người sẽ tính x3 so với gửi đồ).
                   </p>
                 </div>
               )

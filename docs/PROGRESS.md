@@ -68,6 +68,16 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-16 (Giai đoạn 6 - CHẶNG 1: HOÀN THIỆN ĐIỀU PHỐI HUB-TO-HUB & CƠ CHẾ CHIA SẺ CHI PHÍ NHIÊN LIỆU)**:
+  - **Mô hình Hub-to-Hub**: Loại bỏ việc nhập điểm đón/trả tùy biến của khách hàng. Điểm đón/trả mặc định gắn liền với điểm xuất phát và kết thúc của chuyến xe.
+  - **Bộ lọc tìm kiếm 15km & Autocomplete**: Tích hợp gợi ý địa điểm thông minh (Autocomplete Geocoding) trên trang chủ `/` và trang tìm kiếm `/trips`. Hệ thống lọc chuyến xe có điểm xuất phát cách điểm đi $\le 15\text{ km}$ và điểm kết thúc cách điểm đến $\le 15\text{ km}$, kèm thông số khoảng cách trực quan trên thẻ chuyến.
+  - **Cơ chế tính chi phí nhiên liệu/sạc điện chia sẻ**:
+    - Khi duyệt chuyến/tìm kiếm: Thẻ chuyến xe và Chi tiết chuyến xe hiển thị tổng chi phí nhiên liệu cho toàn bộ chuyến xe (`Chi phí nhiên liệu/sạc điện cho chuyến xe: xxx đ`). Tuyệt đối không hiển thị con số chia sẻ mỗi người khi xe chưa chạy.
+    - Thời điểm chốt chi phí: Chỉ khi tài xế bấm nút **"Bắt đầu hành trình"** (`startTrip`), hệ thống mới tính toán chia đều cho tổng số người/suất tham gia thực tế trên xe.
+    - Công thức trọng số: Đi nhờ $N$ người tính $N$ suất (ví dụ: đi 3 người tính chi phí x3 so với 1 kiện hàng); gửi đồ tính 1 suất.
+    - Cập nhật số tiền hỗ trợ vào chi tiết chuyến xe và thông báo cho từng hành khách.
+  - **Kích hoạt nút điều hành chuyến**: Các nút "Đã đón khách lên xe" và "Đã nhận hàng vào cốp" trong trang Điều hành chuyến xe chỉ được kích hoạt khi tài xế đã bấm "Bắt đầu hành trình" (`trip.status === 'IN_PROGRESS'`).
+  - **Liên kết trải nghiệm**: Bổ sung nút "Xem chi tiết chuyến xe" trong trang "Yêu cầu của tôi" (`MyRequests.tsx`).
 - **2026-11-12 (Giai đoạn 5 - HOÀN THÀNH TOÀN DIỆN)**:
   - Hoàn thành module Tác vụ Tự động Ngầm (`scheduler`): Tích hợp `node-cron` và tính toán chuẩn múi giờ Việt Nam (`Asia/Ho_Chi_Minh`) bằng `date-fns-tz`.
   - Thực thi cơ chế `CS-01`: Quét tự động mỗi phút (cron `* * * * *`) đóng chuyến xe khi thời gian khởi hành $\le \text{now} + 6\text{h}$, tự động chuyển tất cả yêu cầu `PENDING` thành `EXPIRED` và gửi thông báo in-app cho cả tài xế và hành khách.

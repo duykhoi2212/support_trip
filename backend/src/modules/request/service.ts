@@ -699,6 +699,10 @@ export class RequestService {
       throw new AppError(403, 'FORBIDDEN', 'Bạn không có quyền điều hành yêu cầu này.');
     }
 
+    if (request.trip.status !== trip_status.IN_PROGRESS) {
+      throw new AppError(400, 'TRIP_NOT_STARTED', 'Chuyến xe chưa bắt đầu hành trình. Vui lòng bấm Bắt đầu hành trình trước khi đón khách hoặc nhận hàng.');
+    }
+
     if (request.status !== request_status.ACCEPTED) {
       throw new AppError(400, 'INVALID_REQUEST_STATUS', 'Chỉ có thể cập nhật tiến trình cho yêu cầu đã được chấp nhận (ACCEPTED).');
     }

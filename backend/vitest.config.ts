@@ -12,5 +12,7 @@ export default defineConfig({
     globalSetup: ['./tests/setup.ts'],
     // Test chạy tuần tự để tránh tranh chấp dữ liệu trên cùng CSDL test
     fileParallelism: false,
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
 });

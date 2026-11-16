@@ -92,3 +92,37 @@ Ngôn ngữ hiển thị: **Tiếng Việt** | Định dạng thời gian hiển
   - `IN_PROGRESS`: Nền xanh dương nhạt, chữ xanh dương đậm (có hiệu ứng pulse nhẹ).
   - `COMPLETED`: Nền tím/xanh ngọc nhạt.
   - `CANCELLED` / `FAILED`: Nền đỏ nhạt, chữ đỏ sẫm.
+
+---
+
+## 3. QUY TẮC NGHIỆP VỤ MỚI VỀ TÍNH TOÁN VÀ ĐIỀU HÀNH CHUYẾN XE (HUB-TO-HUB & FUEL SHARING)
+
+### 3.1. Mô hình Hub-to-Hub (Tập trung tại điểm xuất phát & kết thúc)
+- **Điểm đón/trả cố định**: Bỏ form nhập điểm đón/trả tùy biến của người dùng khi tạo yêu cầu. Người dùng tự di chuyển đến điểm xuất phát của chuyến xe và tự rời đi từ điểm kết thúc của chuyến xe.
+- **Bộ lọc tìm kiếm bán kính 15km**: Khi người dùng tìm chuyến bằng điểm đi và điểm đến mong muốn, hệ thống so sánh khoảng cách địa lý (Haversine/Turf):
+  - Khoảng cách giữa điểm đi của khách và điểm xuất phát của chuyến $\le 15\text{ km}$.
+  - Khoảng cách giữa điểm đến của khách và điểm kết thúc của chuyến $\le 15\text{ km}$.
+  - Hiển thị thông tin khoảng cách này trên thẻ chuyến xe để người dùng cân nhắc.
+
+### 3.2. Cơ chế Tính toán và Hiển thị Chi phí Nhiên liệu / Sạc điện (Cost Sharing)
+- **Bản chất**: GoX không thu cước vận tải thương mại. Khoản tiền hiển thị là khoản chi phí hỗ trợ nhiên liệu/sạc điện chia sẻ tự nguyện giữa các thành viên.
+- **Khi chuyến xe chưa khởi hành (`OPEN` hoặc `CLOSED`)**:
+  - Trên thẻ tìm kiếm chuyến xe và trang Chi tiết chuyến xe: **TUYỆT ĐỐI CHỈ HIỂN THỊ TỔNG CHI PHÍ NHIÊN LIỆU CHO TOÀN BỘ CHUYẾN XE** (`Chi phí nhiên liệu cho chuyến xe: xxx đ` hoặc `Chi phí sạc điện cho chuyến xe: xxx đ`).
+  - **Không** hiển thị con số ước tính chia sẻ mỗi người vì số lượng người tham gia thực tế chưa được chốt.
+- **Thời điểm tính toán & chốt chi phí**:
+  - Chỉ khi tài xế bấm nút **"Bắt đầu hành trình"** (`startTrip`), hệ thống mới tính toán và chốt mức hỗ trợ cho từng yêu cầu.
+- **Công thức phân bổ chi phí có trọng số**:
+  - Tổng số suất tham gia trên xe:
+    $$U = \sum_{req \in ACCEPTED} (\text{req.type} == 'RIDE' \ ? \ \text{passenger\_count} : 1)$$
+    (Mỗi kiện hàng tính 1 suất; Yêu cầu đi nhờ tính theo số lượng người đăng ký).
+  - Đơn giá mỗi suất: $\text{costPerUnit} = \text{Math.round}(\text{trip.estimated\_fuel\_cost} / U)$.
+  - Khoản hỗ trợ của từng yêu cầu: $\text{shared\_fuel\_cost} = \text{costPerUnit} \times (\text{req.type} == 'RIDE' \ ? \ \text{passenger\_count} : 1)$.
+  - *Ví dụ*: Một yêu cầu đi nhờ 3 người và 3 yêu cầu gửi đồ (mỗi yêu cầu 1 kiện) $\rightarrow$ Tổng $U = 6$ suất. Đơn giá chia 6; yêu cầu đi nhờ 3 người chịu $3 \times \text{costPerUnit}$ (gấp 3 lần so với 1 yêu cầu gửi đồ).
+- **Hiển thị sau khi khởi hành**:
+  - Người dùng xem trong "Chi tiết chuyến xe" và "Yêu cầu của tôi" sẽ thấy số tiền hỗ trợ nhiên liệu chính thức cần gửi tài xế khi đến nơi.
+  - Tài xế chỉ thấy số tiền chi phí hỗ trợ trong trang "Điều hành chuyến" và "Chi tiết yêu cầu" **SAU KHI** đã bấm "Bắt đầu hành trình".
+
+### 3.3. Quy tắc Kích hoạt Thao tác Điều hành Chuyến (Driver Operations)
+- Các nút **"Đã đón khách lên xe"** và **"Đã nhận hàng vào cốp"** trong trang Điều hành chuyến xe chỉ được **kích hoạt (clickable)** khi tài xế đã bấm **"Bắt đầu hành trình"** (`trip.status === 'IN_PROGRESS'`).
+- Khi chuyến xe vẫn đang ở trạng thái `OPEN` hoặc `CLOSED`, các nút này ở trạng thái vô hiệu hóa (disabled) kèm thông báo hướng dẫn tài xế bấm bắt đầu hành trình trước.
+- Backend API cũng kiểm tra chặt chẽ điều kiện `trip.status === 'IN_PROGRESS'` tại hàm `updateProgress`, từ chối cập nhật đón/trả nếu chuyến chưa bắt đầu.
