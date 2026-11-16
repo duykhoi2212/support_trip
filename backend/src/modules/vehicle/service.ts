@@ -11,7 +11,9 @@ export class VehicleService {
   static async createVehicle(
     driverId: bigint,
     input: z.infer<typeof createVehicleSchema>,
-    photoUrl: string
+    photoUrl: string,
+    fuelPhotoUrl?: string,
+    inspectionPhotoUrl?: string
   ) {
     if (!photoUrl) {
       throw new AppError(400, 'PHOTO_REQUIRED', 'Ảnh chụp phương tiện là bắt buộc.');
@@ -46,6 +48,11 @@ export class VehicleService {
         seat_count: input.seat_count,
         cargo_area_m2: input.cargo_area_m2,
         cargo_max_kg: input.cargo_max_kg,
+        fuel_type: input.fuel_type,
+        fuel_consumption: input.fuel_consumption,
+        fuel_photo_url: fuelPhotoUrl || null,
+        inspection_photo_url: inspectionPhotoUrl || null,
+        inspection_expiry_date: input.inspection_expiry_date ? new Date(input.inspection_expiry_date) : null,
         photo_url: photoUrl,
         status: vehicle_status.ACTIVE,
       },
@@ -93,7 +100,9 @@ export class VehicleService {
     driverId: bigint,
     vehicleId: bigint,
     input: z.infer<typeof updateVehicleSchema>,
-    newPhotoUrl?: string
+    newPhotoUrl?: string,
+    fuelPhotoUrl?: string,
+    inspectionPhotoUrl?: string
   ) {
     const vehicle = await this.getVehicleById(driverId, vehicleId);
 
@@ -126,7 +135,16 @@ export class VehicleService {
     if (input.seat_count !== undefined) dataToUpdate.seat_count = input.seat_count;
     if (input.cargo_area_m2 !== undefined) dataToUpdate.cargo_area_m2 = input.cargo_area_m2;
     if (input.cargo_max_kg !== undefined) dataToUpdate.cargo_max_kg = input.cargo_max_kg;
+    if (input.fuel_type !== undefined) dataToUpdate.fuel_type = input.fuel_type;
+    if (input.fuel_consumption !== undefined) dataToUpdate.fuel_consumption = input.fuel_consumption;
+    if (input.inspection_expiry_date !== undefined) {
+      dataToUpdate.inspection_expiry_date = input.inspection_expiry_date
+        ? new Date(input.inspection_expiry_date)
+        : null;
+    }
     if (newPhotoUrl) dataToUpdate.photo_url = newPhotoUrl;
+    if (fuelPhotoUrl) dataToUpdate.fuel_photo_url = fuelPhotoUrl;
+    if (inspectionPhotoUrl) dataToUpdate.inspection_photo_url = inspectionPhotoUrl;
 
     return prisma.vehicle.update({
       where: { id: vehicleId },

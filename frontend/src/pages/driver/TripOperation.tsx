@@ -11,7 +11,8 @@ import {
   X,
   Maximize2,
   User,
-  Box
+  Box,
+  Fuel
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { requestService } from '../../services/requestService';
@@ -581,6 +582,14 @@ export const TripOperation: React.FC = () => {
                         </div>
                       </div>
                     )}
+
+                    {/* Hiển thị mức hỗ trợ nhiên liệu/sạc chia sẻ khi chuyến đã bắt đầu */}
+                    {req.shared_fuel_cost !== undefined && req.shared_fuel_cost !== null && req.shared_fuel_cost > 0 && (
+                      <div className="inline-flex items-center px-3 py-1.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-semibold">
+                        <Fuel className="w-3.5 h-3.5 mr-1.5 text-teal-600 flex-shrink-0" />
+                        <span>Hỗ trợ nhiên liệu/sạc chia sẻ: <strong className="font-bold text-teal-950">{req.shared_fuel_cost.toLocaleString('vi-VN')} đ</strong></span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Nút thao tác tiến trình & Xem chi tiết */}
@@ -848,6 +857,24 @@ export const TripOperation: React.FC = () => {
                     <span className="text-slate-500">Số lượng chỗ đặt: </span>
                     <strong className="text-slate-900">{selectedDetailReq.passenger_count} chỗ ngồi</strong>
                   </div>
+                </div>
+              )}
+
+              {/* Mức hỗ trợ chi phí nhiên liệu/sạc chia sẻ */}
+              {selectedDetailReq.shared_fuel_cost !== undefined && selectedDetailReq.shared_fuel_cost !== null && selectedDetailReq.shared_fuel_cost > 0 && (
+                <div className="p-3.5 bg-teal-50 rounded-2xl border border-teal-200 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-teal-900 flex items-center">
+                      <Fuel className="w-4 h-4 mr-1.5 text-teal-600" />
+                      Khoản hỗ trợ nhiên liệu/sạc chia sẻ:
+                    </span>
+                    <strong className="text-teal-950 text-sm font-black">
+                      {selectedDetailReq.shared_fuel_cost.toLocaleString('vi-VN')} đ
+                    </strong>
+                  </div>
+                  <p className="text-[11px] text-teal-700 mt-1 italic">
+                    (Chia đều cho mọi thành viên tham gia chuyến xe khi tài xế bắt đầu hành trình)
+                  </p>
                 </div>
               )}
             </div>

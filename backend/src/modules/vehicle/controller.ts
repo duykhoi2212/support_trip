@@ -8,12 +8,26 @@ export class VehicleController {
   static async create(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
-      if (!req.file) throw new AppError(400, 'PHOTO_REQUIRED', 'Vui lòng tải lên ảnh chụp phương tiện.');
+
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      const photoFile = files?.photo?.[0] || req.file;
+      const fuelPhotoFile = files?.fuel_photo?.[0];
+      const inspectionPhotoFile = files?.inspection_photo?.[0];
+
+      if (!photoFile) throw new AppError(400, 'PHOTO_REQUIRED', 'Vui lòng tải lên ảnh chụp phương tiện.');
 
       const validated = createVehicleSchema.parse(req.body);
-      const photoUrl = `/uploads/${req.file.filename}`;
+      const photoUrl = `/uploads/${photoFile.filename}`;
+      const fuelPhotoUrl = fuelPhotoFile ? `/uploads/${fuelPhotoFile.filename}` : undefined;
+      const inspectionPhotoUrl = inspectionPhotoFile ? `/uploads/${inspectionPhotoFile.filename}` : undefined;
 
-      const vehicle = await VehicleService.createVehicle(req.user.id, validated, photoUrl);
+      const vehicle = await VehicleService.createVehicle(
+        req.user.id,
+        validated,
+        photoUrl,
+        fuelPhotoUrl,
+        inspectionPhotoUrl
+      );
 
       res.status(201).json({
         success: true,
@@ -59,9 +73,24 @@ export class VehicleController {
       if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
       const vehicleId = BigInt(req.params.id);
       const validated = updateVehicleSchema.parse(req.body);
-      const newPhotoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
 
-      const updated = await VehicleService.updateVehicle(req.user.id, vehicleId, validated, newPhotoUrl);
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      const photoFile = files?.photo?.[0] || req.file;
+      const fuelPhotoFile = files?.fuel_photo?.[0];
+      const inspectionPhotoFile = files?.inspection_photo?.[0];
+
+      const newPhotoUrl = photoFile ? `/uploads/${photoFile.filename}` : undefined;
+      const fuelPhotoUrl = fuelPhotoFile ? `/uploads/${fuelPhotoFile.filename}` : undefined;
+      const inspectionPhotoUrl = inspectionPhotoFile ? `/uploads/${inspectionPhotoFile.filename}` : undefined;
+
+      const updated = await VehicleService.updateVehicle(
+        req.user.id,
+        vehicleId,
+        validated,
+        newPhotoUrl,
+        fuelPhotoUrl,
+        inspectionPhotoUrl
+      );
       res.status(200).json({
         success: true,
         data: updated,

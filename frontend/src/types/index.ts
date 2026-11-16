@@ -36,7 +36,8 @@ export interface ApiErrorResponse {
 // -------------------------------------------------------------
 // PHƯƠNG TIỆN (VEHICLE)
 // -------------------------------------------------------------
-export type VehicleType = 'MOTORBIKE' | 'CAR' | 'VAN' | 'TRUCK';
+export type VehicleType = 'CAR' | 'VAN' | 'TRUCK';
+export type FuelType = 'GASOLINE' | 'DIESEL' | 'ELECTRIC';
 export type VehicleStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface Vehicle {
@@ -49,6 +50,11 @@ export interface Vehicle {
   seat_count: number;
   cargo_area_m2: number;
   cargo_max_kg: number;
+  fuel_type?: FuelType;
+  fuel_consumption?: number;
+  fuel_photo_url?: string | null;
+  inspection_photo_url?: string | null;
+  inspection_expiry_date?: string | null;
   photo_url: string;
   status: VehicleStatus;
   created_at: string;
@@ -81,6 +87,10 @@ export interface Trip {
   seats_reserved: number;
   cargo_area_reserved_m2: number;
   cargo_weight_reserved_kg: number;
+  estimated_fuel_cost?: number | null;
+  fuel_price?: number | null;
+  pickup_distance_km?: number | null;
+  dropoff_distance_km?: number | null;
   status: TripStatus;
   cancel_reason?: string | null;
   started_at?: string | null;
@@ -141,6 +151,7 @@ export interface TransportRequest {
   passenger_count?: number | null;
   ride_progress?: RideProgress | null;
   status: RequestStatus;
+  shared_fuel_cost?: number | null;
   reject_reason?: string | null;
   cancel_reason?: string | null;
   cancelled_by?: string | null;

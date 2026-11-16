@@ -9,10 +9,16 @@ export const vehicleRouter = Router();
 // Toàn bộ chức năng quản lý phương tiện chỉ dành cho vai trò DRIVER
 vehicleRouter.use(authenticateToken, requireRole([user_role.DRIVER]));
 
-vehicleRouter.post('/', uploadImage.single('photo'), VehicleController.create);
+const vehicleUpload = uploadImage.fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'fuel_photo', maxCount: 1 },
+  { name: 'inspection_photo', maxCount: 1 },
+]);
+
+vehicleRouter.post('/', vehicleUpload, VehicleController.create);
 vehicleRouter.get('/', VehicleController.getMyVehicles);
 vehicleRouter.get('/:id', VehicleController.getById);
-vehicleRouter.patch('/:id', uploadImage.single('photo'), VehicleController.update);
+vehicleRouter.patch('/:id', vehicleUpload, VehicleController.update);
 vehicleRouter.delete('/:id', VehicleController.delete);
 vehicleRouter.post('/:id/deactivate', VehicleController.deactivate);
 vehicleRouter.post('/:id/activate', VehicleController.activate);

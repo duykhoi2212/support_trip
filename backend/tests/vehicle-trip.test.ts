@@ -246,4 +246,91 @@ describe('Kiểm thử Module Phương tiện & Chuyến xe (DR-04, DR-01, DR-05
     const dbCheck = await prisma.vehicle.findUnique({ where: { id: freshCar.id } });
     expect(dbCheck).toBeNull();
   });
+
+  it('13. An toàn giao thông: Chặn tạo chuyến khi xe đã hết hạn đăng kiểm', async () => {
+    // Tạo 1 xe có hạn đăng kiểm trong quá khứ
+    const expiredPlate = '29E-' + Math.floor(10000 + Math.random() * 90000);
+    const expiredVehicle = await prisma.vehicle.create({
+      data: {
+        driver_id: driverId,
+        type: vehicle_type.CAR,
+        plate_number: expiredPlate,
+        brand_model: 'VinFast VF5',
+        seat_count: 4,
+        cargo_area_m2: 0.8,
+        cargo_max_kg: 80,
+        photo_url: '/uploads/vf5.jpg',
+        inspection_expiry_date: new Date(Date.now() - 24 * 60 * 60 * 1000), // Hết hạn hôm qua
+      },
+    });
+
+    const validDepTime = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    await expect(
+      TripService.createTrip(driverId, {
+        vehicle_id: expiredVehicle.id.toString(),
+        origin_name: 'Test Đăng kiểm - Hà Nội',
+        origin_lat: 21.0285,
+        origin_lng: 105.7782,
+        dest_name: 'Test Đăng kiểm - Nam Định',
+        dest_lat: 20.4200,
+        dest_lng: 106.1683,
+        departure_time: validDepTime,
+      })
+    ).rejects.toThrow('hết hạn');
+
+    await prisma.vehicle.delete({ where: { id: expiredVehicle.id } });
+  });
+
+  it('14. Thuật toán tìm kiếm <= 15km: So khớp điểm đón/trả và hiển thị khoảng cách', async () => {
+    // 1. Tạo 1 chuyến xe OPEN hợp lệ để test tìm kiếm
+    const searchTrip = await prisma.trip.create({
+      data: {
+        code: 'TRIP-SRCH' + Math.floor(1000 + Math.random() * 9000),
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        origin_name: 'Bến xe Mỹ Đình, Hà Nội',
+        origin_lat: 21.0285,
+        origin_lng: 105.7782,
+        dest_name: 'Bến xe Nam Định',
+        dest_lat: 20.4200,
+        dest_lng: 106.1683,
+        departure_time: new Date(Date.now() + 72 * 60 * 60 * 1000),
+        eta: new Date(Date.now() + 74 * 60 * 60 * 1000),
+        seats_total: 4,
+        cargo_area_total_m2: 1.0,
+        cargo_weight_total_kg: 100,
+        status: trip_status.OPEN,
+        estimated_fuel_cost: 135000,
+        fuel_price: 22500,
+      },
+    });
+
+    // 2. Điểm đón cách điểm xuất phát xe ~4km, điểm trả cách điểm đến ~5km
+    const results = await TripService.searchTrips({
+      pickup_lat: 21.0350,
+      pickup_lng: 105.7900,
+      dropoff_lat: 20.4300,
+      dropoff_lng: 106.1750,
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    const matched = results.find((r) => r.id.toString() === searchTrip.id.toString());
+    expect(matched).toBeDefined();
+    expect(matched.pickup_distance_km).toBeDefined();
+    expect(matched.pickup_distance_km).toBeLessThanOrEqual(15);
+    expect(matched.dropoff_distance_km).toBeDefined();
+    expect(matched.dropoff_distance_km).toBeLessThanOrEqual(15);
+
+    // 3. Nếu tìm kiếm với điểm đón quá xa (> 15km, ví dụ Lạng Sơn lat 21.85) -> không khớp
+    const farResults = await TripService.searchTrips({
+      pickup_lat: 21.8500,
+      pickup_lng: 106.7500,
+      dropoff_lat: 20.4300,
+      dropoff_lng: 106.1750,
+    });
+    const farMatched = farResults.find((r) => r.id.toString() === searchTrip.id.toString());
+    expect(farMatched).toBeUndefined();
+
+    await prisma.trip.delete({ where: { id: searchTrip.id } });
+  });
 });

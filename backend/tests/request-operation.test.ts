@@ -158,20 +158,19 @@ describe('Kiểm thử Module Yêu cầu vận chuyển & Điều hành chuyến
     });
   });
 
-  it('1. US-01: Chặn tạo yêu cầu khi điểm đón hoặc điểm trả cách xa lộ trình > 2.0 km', async () => {
-    // Tọa độ xa lắc tại Lạng Sơn (cách cao tốc Hà Nội - Nam Định hàng chục km)
+  it('1. US-01: Chặn tài xế tự đặt chuyến của chính mình (SELF_BOOKING_NOT_ALLOWED)', async () => {
     await expect(
-      RequestService.createRideRequest(user1Id, {
+      RequestService.createRideRequest(driverId, {
         trip_id: tripId.toString(),
-        pickup_name: 'Điểm đón xa lộ trình',
-        pickup_lat: 21.8500,
-        pickup_lng: 106.7500,
-        dropoff_name: 'Điểm trả hợp lệ',
-        dropoff_lat: validDropoff[0],
-        dropoff_lng: validDropoff[1],
+        pickup_name: 'Điểm đón tự đặt',
+        pickup_lat: 21.0285,
+        pickup_lng: 105.7782,
+        dropoff_name: 'Điểm trả tự đặt',
+        dropoff_lat: 20.4344,
+        dropoff_lng: 106.1764,
         passenger_count: 1,
       })
-    ).rejects.toThrow('vượt quá bán kính cho phép 2.0 km');
+    ).rejects.toThrow('Tài xế không thể tự đặt chỗ trên chuyến xe của chính mình.');
   });
 
   it('2. US-01: Tạo yêu cầu đi nhờ xe (RIDE) thành công khi điểm đón/trả <= 2.0 km', async () => {

@@ -27,10 +27,15 @@ enum account_status {
 }
 
 enum vehicle_type {
-  MOTORBIKE
   CAR
   VAN
   TRUCK
+}
+
+enum fuel_type {
+  GASOLINE
+  DIESEL
+  ELECTRIC
 }
 
 enum vehicle_status {
@@ -137,19 +142,24 @@ model User {
 }
 
 model Vehicle {
-  id             BigInt         @id @default(autoincrement())
-  driver_id      BigInt
-  type           vehicle_type
-  plate_number   String         @db.VarChar(20)
-  brand_model    String?        @db.VarChar(100)
-  color          String?        @db.VarChar(30)
-  seat_count     Int
-  cargo_area_m2  Float          @default(0)
-  cargo_max_kg   Float          @default(0)
-  photo_url      String         @db.VarChar(255)
-  status         vehicle_status @default(ACTIVE)
-  is_deleted     Boolean        @default(false)
-  created_at     DateTime       @default(now()) @db.Timestamp(6)
+  id                      BigInt         @id @default(autoincrement())
+  driver_id               BigInt
+  type                    vehicle_type
+  plate_number            String         @db.VarChar(20)
+  brand_model             String?        @db.VarChar(100)
+  color                   String?        @db.VarChar(30)
+  seat_count              Int
+  cargo_area_m2           Float          @default(0)
+  cargo_max_kg            Float          @default(0)
+  fuel_type               fuel_type      @default(GASOLINE)
+  fuel_consumption        Float          @default(7.0)
+  fuel_photo_url          String?        @db.VarChar(255)
+  inspection_photo_url    String?        @db.VarChar(255)
+  inspection_expiry_date  DateTime?      @db.Timestamp(6)
+  photo_url               String         @db.VarChar(255)
+  status                  vehicle_status @default(ACTIVE)
+  is_deleted              Boolean        @default(false)
+  created_at              DateTime       @default(now()) @db.Timestamp(6)
 
   // Relations
   driver User   @relation(fields: [driver_id], references: [id])
@@ -181,6 +191,8 @@ model Trip {
   seats_reserved          Int         @default(0)
   cargo_area_reserved_m2  Float       @default(0)
   cargo_weight_reserved_kg Float      @default(0)
+  estimated_fuel_cost     Float?      @default(0)
+  fuel_price              Float?      @default(0)
   status                  trip_status @default(OPEN)
   cancel_reason           String?     @db.VarChar(255)
   started_at              DateTime?   @db.Timestamp(6)
@@ -213,6 +225,7 @@ model TransportRequest {
   passenger_count           Int?
   ride_progress             ride_progress?
   status                    request_status    @default(PENDING)
+  shared_fuel_cost          Float?            @default(0)
   reject_reason             String?           @db.VarChar(255)
   cancel_reason             String?           @db.VarChar(255)
   cancelled_by              actor_type?

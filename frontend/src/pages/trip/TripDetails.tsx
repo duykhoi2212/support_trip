@@ -13,14 +13,16 @@ import {
   Search,
   ShieldCheck,
   User as UserIcon,
-  ArrowRight
+  ArrowRight,
+  Zap,
+  Fuel
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { requestService } from '../../services/requestService';
 import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { RouteMap } from '../../components/map/RouteMap';
-import { checkDistanceToPolyline } from '../../utils/geo';
+import { getDistanceKm } from '../../utils/geo';
 
 export const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -162,16 +164,18 @@ export const TripDetails: React.FC = () => {
     }, 350);
   };
 
-  // Tính khoảng cách trắc địa từ điểm đón/trả đến lộ trình polyline của xe
+  // Khoảng cách trắc địa từ điểm đón đến Điểm xuất phát của chuyến, và điểm trả đến Điểm đến của chuyến (≤ 15km đề xuất thuận tiện)
+  const pickupDistanceKm = trip && pickupLat && pickupLng
+    ? Math.round(getDistanceKm(pickupLat, pickupLng, trip.origin_lat, trip.origin_lng) * 10) / 10
+    : 0;
+
+  const dropoffDistanceKm = trip && dropoffLat && dropoffLng
+    ? Math.round(getDistanceKm(dropoffLat, dropoffLng, trip.dest_lat, trip.dest_lng) * 10) / 10
+    : 0;
+
   const routeCoords: Array<[number, number]> = trip?.route_polyline
     ? JSON.parse(trip.route_polyline)
     : [];
-
-  const pickupDistanceKm = checkDistanceToPolyline(pickupLat, pickupLng, routeCoords);
-  const dropoffDistanceKm = checkDistanceToPolyline(dropoffLat, dropoffLng, routeCoords);
-
-  const isPickupValid = pickupDistanceKm <= 2.0;
-  const isDropoffValid = dropoffDistanceKm <= 2.0;
 
   // Tính diện tích chiếm dụng m2 = (dài * rộng) / 10000
   const calculatedAreaM2 = Math.round(((lengthCm * widthCm) / 10000) * 100) / 100;
@@ -196,8 +200,8 @@ export const TripDetails: React.FC = () => {
 
     if (!trip) return;
 
-    if (!isPickupValid || !isDropoffValid) {
-      setFormError('Điểm đón và điểm trả phải nằm trong bán kính tối đa 2.0 km so với tuyến đường của chuyến xe.');
+    if (!pickupName.trim() || !dropoffName.trim()) {
+      setFormError('Vui lòng nhập đầy đủ điểm đón và điểm trả.');
       return;
     }
 
@@ -399,7 +403,7 @@ export const TripDetails: React.FC = () => {
                 <Navigation className="w-4 h-4 mr-1.5 text-emerald-600" />
                 Lộ trình di chuyển bám đường thực tế
               </span>
-              <span className="text-[11px] text-slate-500">Quy tắc đón/trả: bán kính ≤ 2.0 km</span>
+              <span className="text-[11px] text-slate-500">Khoảng cách đón/trả thuận tiện: ≤ 15 km</span>
             </div>
 
             <RouteMap
@@ -412,34 +416,110 @@ export const TripDetails: React.FC = () => {
             />
           </div>
 
-          {/* Thông tin Tài xế & Phương tiện */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-base flex-shrink-0">
-                {trip.driver?.full_name ? trip.driver.full_name[0] : <UserIcon className="w-6 h-6" />}
-              </div>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Tài xế</span>
-                <h4 className="font-bold text-slate-900 text-sm">{trip.driver?.full_name}</h4>
-                <div className="flex items-center text-[11px] text-emerald-700 mt-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                  Đã xác thực danh tính
-                </div>
-              </div>
-            </div>
-
-            {trip.vehicle && (
-              <div className="flex items-center space-x-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center flex-shrink-0">
-                  <Car className="w-6 h-6" />
+          {/* Thông tin Tài xế & Phương tiện & Chi phí nhiên liệu */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-base flex-shrink-0">
+                  {trip.driver?.full_name ? trip.driver.full_name[0] : <UserIcon className="w-6 h-6" />}
                 </div>
                 <div>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Phương tiện</span>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {trip.vehicle.brand_model} ({trip.vehicle.color})
-                  </h4>
-                  <p className="text-xs font-mono font-bold text-slate-600 mt-0.5">{trip.vehicle.plate_number}</p>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Tài xế</span>
+                  <h4 className="font-bold text-slate-900 text-sm">{trip.driver?.full_name}</h4>
+                  <div className="flex items-center text-[11px] text-emerald-700 mt-0.5">
+                    <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                    Đã xác thực danh tính
+                  </div>
                 </div>
+              </div>
+
+              {trip.vehicle && (
+                <div className="flex items-center space-x-3 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4">
+                  {trip.vehicle.photo_url ? (
+                    <img
+                      src={trip.vehicle.photo_url}
+                      alt={trip.vehicle.brand_model || 'Phương tiện'}
+                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center flex-shrink-0">
+                      <Car className="w-6 h-6" />
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Phương tiện</span>
+                    <h4 className="font-bold text-slate-900 text-sm">
+                      {trip.vehicle.brand_model} ({trip.vehicle.color})
+                    </h4>
+                    <p className="text-xs font-mono font-bold text-slate-600 mt-0.5">{trip.vehicle.plate_number}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Thông số kỹ thuật & Đăng kiểm & Nhiên liệu */}
+            {trip.vehicle && (
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center space-x-2.5">
+                  {trip.vehicle.fuel_type === 'ELECTRIC' ? (
+                    <Zap className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  ) : (
+                    <Fuel className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  )}
+                  <div>
+                    <span className="text-[11px] text-slate-500 block">Nhiên liệu & Tiêu thụ</span>
+                    <span className="font-bold text-slate-800">
+                      {trip.vehicle.fuel_type === 'ELECTRIC'
+                        ? `Xe điện (EV) • ${trip.vehicle.fuel_consumption || 15} kWh/100km`
+                        : trip.vehicle.fuel_type === 'DIESEL'
+                        ? `Dầu Diesel • ${trip.vehicle.fuel_consumption || 7} L/100km`
+                        : `Xăng • ${trip.vehicle.fuel_consumption || 7.5} L/100km`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center space-x-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <span className="text-[11px] text-slate-500 block">Kiểm định an toàn (Đăng kiểm)</span>
+                    <span className="font-bold text-slate-800">
+                      {trip.vehicle.inspection_expiry_date
+                        ? `Hạn đến ${new Date(trip.vehicle.inspection_expiry_date).toLocaleDateString('vi-VN')}`
+                        : 'Đạt chuẩn kiểm định an toàn'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Chi phí nhiên liệu/sạc dự kiến & Ước tính chia sẻ tự nguyện */}
+            {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
+              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/80">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                      Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} dự kiến
+                    </span>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Đoạn đường {trip.distance_km} km theo định mức tiêu hao phương tiện
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-black text-emerald-700">
+                      {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">toàn chuyến xe</span>
+                  </div>
+                </div>
+                <div className="mt-2.5 pt-2.5 border-t border-emerald-200/60 text-xs text-emerald-900 flex items-center justify-between">
+                  <span>Ước tính hỗ trợ chia sẻ mỗi người:</span>
+                  <strong className="text-emerald-800 font-extrabold text-sm">
+                    ~{Math.round(trip.estimated_fuel_cost / Math.max(1, (trip.seats_reserved + 1))).toLocaleString('vi-VN')} đ
+                  </strong>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed italic">
+                  * GoX hoạt động phi thương mại: Số tiền trên là chi phí thực tế chia đều cho số người trên xe (không tích hợp thanh toán, người dùng tự nguyện gửi tài xế để hỗ trợ tiền {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc' : 'xăng/dầu'}).
+                </p>
               </div>
             )}
           </div>
@@ -553,10 +633,12 @@ export const TripDetails: React.FC = () => {
                     </span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isPickupValid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        pickupDistanceKm <= 15 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {isPickupValid ? `Cách lộ trình ${pickupDistanceKm} km (Hợp lệ)` : `Cách lộ trình ${pickupDistanceKm} km (> 2km)`}
+                      {pickupDistanceKm === 0
+                        ? 'Tại điểm xuất phát của chuyến'
+                        : `Cách xuất phát ${pickupDistanceKm} km ${pickupDistanceKm <= 15 ? '(Thuận tiện)' : '(Cần chủ động di chuyển)'}`}
                     </span>
                   </label>
                   <div className="relative">
@@ -606,10 +688,12 @@ export const TripDetails: React.FC = () => {
                     </span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isDropoffValid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        dropoffDistanceKm <= 15 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {isDropoffValid ? `Cách lộ trình ${dropoffDistanceKm} km (Hợp lệ)` : `Cách lộ trình ${dropoffDistanceKm} km (> 2km)`}
+                      {dropoffDistanceKm === 0
+                        ? 'Tại điểm đến của chuyến'
+                        : `Cách điểm đến ${dropoffDistanceKm} km ${dropoffDistanceKm <= 15 ? '(Thuận tiện)' : '(Cần chủ động di chuyển)'}`}
                     </span>
                   </label>
                   <div className="relative">
@@ -799,7 +883,7 @@ export const TripDetails: React.FC = () => {
                 {/* Nút nộp form */}
                 <button
                   type="submit"
-                  disabled={submitting || !isPickupValid || !isDropoffValid}
+                  disabled={submitting || !pickupName.trim() || !dropoffName.trim()}
                   className={`w-full py-3.5 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                     requestType === 'RIDE'
                       ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'

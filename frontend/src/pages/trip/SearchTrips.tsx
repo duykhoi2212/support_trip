@@ -11,7 +11,9 @@ import {
   Weight,
   Sparkles,
   ArrowRight,
-  XCircle
+  XCircle,
+  Zap,
+  Fuel
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { Trip } from '../../types';
@@ -24,6 +26,7 @@ export const SearchTrips: React.FC = () => {
   // Bộ lọc tìm kiếm
   const [originName, setOriginName] = useState<string>('');
   const [destName, setDestName] = useState<string>('');
+  const [departureDate, setDepartureDate] = useState<string>('');
   const [requestType, setRequestType] = useState<'ALL' | 'RIDE' | 'PACKAGE'>('ALL');
   const [passengerCount, setPassengerCount] = useState<number>(1);
   const [cargoWeightKg, setCargoWeightKg] = useState<number>(5);
@@ -35,6 +38,7 @@ export const SearchTrips: React.FC = () => {
       const params: any = {};
       if (originName.trim()) params.origin_name = originName.trim();
       if (destName.trim()) params.dest_name = destName.trim();
+      if (departureDate) params.departure_date = departureDate;
       if (requestType !== 'ALL') params.type = requestType;
       if (requestType === 'RIDE' && passengerCount > 0) params.passenger_count = passengerCount;
       if (requestType === 'PACKAGE' && cargoWeightKg > 0) params.cargo_weight_kg = cargoWeightKg;
@@ -129,7 +133,7 @@ export const SearchTrips: React.FC = () => {
           </div>
 
           {/* Hàng ô nhập điểm xuất phát, điểm đến & bộ lọc */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Điểm xuất phát:
@@ -158,6 +162,21 @@ export const SearchTrips: React.FC = () => {
                   onChange={(e) => setDestName(e.target.value)}
                   placeholder="Tỉnh/Thành, Điểm đến..."
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ngày đi (tùy chọn):
+              </label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="date"
+                  value={departureDate}
+                  onChange={(e) => setDepartureDate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700"
                 />
               </div>
             </div>
@@ -197,6 +216,12 @@ export const SearchTrips: React.FC = () => {
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+              </div>
+            )}
+
+            {requestType === 'ALL' && (
+              <div className="hidden lg:block">
+                {/* Spacer giữ cân bằng lưới 5 cột */}
               </div>
             )}
 
@@ -330,7 +355,7 @@ export const SearchTrips: React.FC = () => {
                   </div>
 
                   {/* Lộ trình Điểm đi -> Điểm đến */}
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-3">
                     <div className="flex items-start space-x-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0 ring-2 ring-emerald-100"></div>
                       <div className="min-w-0">
@@ -346,6 +371,22 @@ export const SearchTrips: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Khoảng cách lân cận so với điểm tìm kiếm (nếu có) */}
+                  {(trip.pickup_distance_km !== undefined || trip.dropoff_distance_km !== undefined) && (
+                    <div className="flex flex-wrap gap-1.5 mb-3 text-[10px] font-bold">
+                      {trip.pickup_distance_km !== undefined && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Đón cách: {trip.pickup_distance_km} km
+                        </span>
+                      )}
+                      {trip.dropoff_distance_km !== undefined && (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200">
+                          Trả cách: {trip.dropoff_distance_km} km
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Giờ khởi hành & Thông số */}
                   <div className="p-3 bg-slate-50 rounded-2xl space-y-1.5 mb-4 text-xs text-slate-600">
@@ -409,6 +450,47 @@ export const SearchTrips: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Thông tin Phương tiện & Mức hỗ trợ nhiên liệu */}
+                  {trip.vehicle && (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                      <span className="flex items-center text-slate-700 font-semibold truncate max-w-[60%]">
+                        <Car className="w-3.5 h-3.5 mr-1 text-slate-400 flex-shrink-0" />
+                        <span className="truncate">{trip.vehicle.brand_model}</span>
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          trip.vehicle.fuel_type === 'ELECTRIC'
+                            ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {trip.vehicle.fuel_type === 'ELECTRIC' ? (
+                          <>
+                            <Zap className="w-3 h-3 mr-1 text-cyan-600" />
+                            Xe điện
+                          </>
+                        ) : (
+                          <>
+                            <Fuel className="w-3 h-3 mr-1 text-amber-600" />
+                            {trip.vehicle.fuel_type === 'DIESEL' ? 'Dầu' : 'Xăng'}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Chi phí nhiên liệu chia sẻ ước tính */}
+                  {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
+                    <div className="mt-2 p-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs flex items-center justify-between">
+                      <span className="text-[11px] text-emerald-800 font-medium">
+                        Hỗ trợ {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'}:
+                      </span>
+                      <strong className="text-emerald-900 font-extrabold text-xs">
+                        ~{Math.round(trip.estimated_fuel_cost / Math.max(1, (trip.seats_reserved + 1))).toLocaleString('vi-VN')} đ/người
+                      </strong>
+                    </div>
+                  )}
 
                   {/* Dòng cập nhật yêu cầu đã duyệt */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">

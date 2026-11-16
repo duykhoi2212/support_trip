@@ -62,37 +62,7 @@ export class RequestService {
       throw new AppError(400, 'SELF_BOOKING_NOT_ALLOWED', 'Tài xế không thể tự đặt chỗ trên chuyến xe của chính mình.');
     }
 
-    // 1. Kiểm tra trắc địa 2km với tuyến đường polyline
-    if (!trip.route_polyline) {
-      throw new AppError(400, 'ROUTE_POLYLINE_MISSING', 'Chuyến xe chưa có dữ liệu lộ trình đường bộ.');
-    }
-
-    let routeCoords: Array<[number, number]>;
-    try {
-      routeCoords = JSON.parse(trip.route_polyline);
-    } catch {
-      throw new AppError(500, 'INVALID_ROUTE_DATA', 'Dữ liệu lộ trình chuyến xe không hợp lệ.');
-    }
-
-    const pickupCheck = isWithinRouteDistance(input.pickup_lat, input.pickup_lng, routeCoords, 2.0);
-    if (!pickupCheck.isWithin) {
-      throw new AppError(
-        400,
-        'PICKUP_OUT_OF_RANGE',
-        `Điểm đón cách lộ trình chuyến xe ${pickupCheck.distanceKm} km (vượt quá bán kính cho phép 2.0 km).`
-      );
-    }
-
-    const dropoffCheck = isWithinRouteDistance(input.dropoff_lat, input.dropoff_lng, routeCoords, 2.0);
-    if (!dropoffCheck.isWithin) {
-      throw new AppError(
-        400,
-        'DROPOFF_OUT_OF_RANGE',
-        `Điểm trả cách lộ trình chuyến xe ${dropoffCheck.distanceKm} km (vượt quá bán kính cho phép 2.0 km).`
-      );
-    }
-
-    // 2. Kiểm tra sức chứa ghế ngồi còn trống
+    // 1. Kiểm tra sức chứa ghế ngồi còn trống
     const availableSeats = trip.seats_total - trip.seats_reserved;
     if (availableSeats < input.passenger_count) {
       throw new AppError(
@@ -182,37 +152,7 @@ export class RequestService {
       throw new AppError(400, 'SELF_BOOKING_NOT_ALLOWED', 'Tài xế không thể tự gửi hàng trên chuyến xe của chính mình.');
     }
 
-    // 1. Kiểm tra trắc địa 2km với tuyến đường polyline
-    if (!trip.route_polyline) {
-      throw new AppError(400, 'ROUTE_POLYLINE_MISSING', 'Chuyến xe chưa có dữ liệu lộ trình đường bộ.');
-    }
-
-    let routeCoords: Array<[number, number]>;
-    try {
-      routeCoords = JSON.parse(trip.route_polyline);
-    } catch {
-      throw new AppError(500, 'INVALID_ROUTE_DATA', 'Dữ liệu lộ trình chuyến xe không hợp lệ.');
-    }
-
-    const pickupCheck = isWithinRouteDistance(input.pickup_lat, input.pickup_lng, routeCoords, 2.0);
-    if (!pickupCheck.isWithin) {
-      throw new AppError(
-        400,
-        'PICKUP_OUT_OF_RANGE',
-        `Điểm gửi hàng cách lộ trình chuyến xe ${pickupCheck.distanceKm} km (vượt quá bán kính 2.0 km).`
-      );
-    }
-
-    const dropoffCheck = isWithinRouteDistance(input.dropoff_lat, input.dropoff_lng, routeCoords, 2.0);
-    if (!dropoffCheck.isWithin) {
-      throw new AppError(
-        400,
-        'DROPOFF_OUT_OF_RANGE',
-        `Điểm nhận hàng cách lộ trình chuyến xe ${dropoffCheck.distanceKm} km (vượt quá bán kính 2.0 km).`
-      );
-    }
-
-    // 2. Tính diện tích chiếm dụng m2 = (dài * rộng) / 10000
+    // 1. Tính diện tích chiếm dụng m2 = (dài * rộng) / 10000
     const areaM2 = Math.round(((input.length_cm * input.width_cm) / 10000) * 1000) / 1000;
 
     // 3. Kiểm tra sức chứa cốp xe
@@ -653,6 +593,7 @@ export class RequestService {
   static async startTrip(driverId: bigint, tripId: bigint) {
     const trip = await prisma.trip.findFirst({
       where: { id: tripId, driver_id: driverId },
+      include: { vehicle: true },
     });
 
     if (!trip) {
@@ -671,16 +612,47 @@ export class RequestService {
       },
     });
 
-    // Thông báo cho tất cả hành khách đã được ACCEPTED
+    // Lấy danh sách tất cả yêu cầu đã được ACCEPTED trên chuyến xe
     const acceptedRequests = await prisma.transportRequest.findMany({
       where: { trip_id: tripId, status: request_status.ACCEPTED },
     });
 
+    const userCount = acceptedRequests.length;
+    let sharedFuelCostPerUser = 0;
+
+    if (userCount > 0 && trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0) {
+      sharedFuelCostPerUser = Math.round(trip.estimated_fuel_cost / userCount);
+
+      // Cập nhật chi phí nhiên liệu chia sẻ vào từng yêu cầu
+      await prisma.transportRequest.updateMany({
+        where: { trip_id: tripId, status: request_status.ACCEPTED },
+        data: { shared_fuel_cost: sharedFuelCostPerUser },
+      });
+    }
+
+    const isElectric = trip.vehicle?.fuel_type === 'ELECTRIC';
+    const fuelLabel = isElectric ? 'sạc điện' : 'nhiên liệu';
+
     for (const req of acceptedRequests) {
+      const costMsg =
+        sharedFuelCostPerUser > 0
+          ? ` Chi phí ${fuelLabel} chia sẻ của bạn là: ${sharedFuelCostPerUser.toLocaleString('vi-VN')} đ (tự nguyện gửi tài xế khi đến nơi).`
+          : '';
+
       await NotificationService.createNotification({
         userId: req.user_id,
         type: 'TRIP_STARTED',
-        content: `Chuyến xe ${trip.code} đã chính thức khởi hành! Hãy chú ý điện thoại để tài xế đón bạn.`,
+        content: `Chuyến xe ${trip.code} đã chính thức khởi hành!${costMsg} Hãy chú ý điện thoại để tài xế đón bạn.`,
+        refType: 'TRIP',
+        refId: trip.id,
+      });
+    }
+
+    if (userCount > 0 && sharedFuelCostPerUser > 0) {
+      await NotificationService.createNotification({
+        userId: driverId,
+        type: 'TRIP_STARTED',
+        content: `Chuyến xe ${trip.code} đã bắt đầu! Đã chốt chi phí ${fuelLabel} chia sẻ: ${sharedFuelCostPerUser.toLocaleString('vi-VN')} đ/người (Tổng ${userCount} người tham gia).`,
         refType: 'TRIP',
         refId: trip.id,
       });

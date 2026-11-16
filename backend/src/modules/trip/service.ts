@@ -2,6 +2,7 @@ import { trip_status, vehicle_status, actor_type, request_status } from '@prisma
 import { prisma } from '../../utils/prisma.js';
 import { AppError } from '../../middlewares/errorHandler.js';
 import { mapAdapter } from '../../adapters/map/ors.js';
+import { calculateHaversineDistanceKm } from '../../utils/distance.js';
 import { createTripSchema, cancelTripSchema, searchTripsSchema } from './schema.js';
 import { z } from 'zod';
 
@@ -42,6 +43,15 @@ export class TripService {
         400,
         'VEHICLE_INACTIVE',
         'Phương tiện đang tạm ngừng sử dụng. Vui lòng kích hoạt lại phương tiện trước khi tạo chuyến.'
+      );
+    }
+
+    // Kiểm tra an toàn kỹ thuật: Hạn đăng kiểm của xe phải còn hiệu lực tới lúc khởi hành
+    if (vehicle.inspection_expiry_date && new Date(vehicle.inspection_expiry_date) < depTime) {
+      throw new AppError(
+        400,
+        'VEHICLE_INSPECTION_EXPIRED',
+        `Phương tiện (${vehicle.plate_number}) có hạn kiểm định đến ${new Date(vehicle.inspection_expiry_date).toLocaleDateString('vi-VN')}, sẽ hết hạn trước thời gian khởi hành. Vui lòng cập nhật giấy đăng kiểm mới trước khi tạo chuyến.`
       );
     }
 
@@ -109,7 +119,22 @@ export class TripService {
       if (!existing) isUnique = true;
     }
 
-    // 6. Tạo chuyến xe kèm lưu Snapshot sức chứa của xe tại thời điểm tạo
+    // 6. Tính toán chi phí năng lượng/nhiên liệu dự kiến của chuyến xe
+    let unitPrice = input.fuel_price;
+    if (!unitPrice || unitPrice <= 0) {
+      if (vehicle.fuel_type === 'ELECTRIC') {
+        unitPrice = 3850; // VNĐ / kWh (Sạc xe điện)
+      } else if (vehicle.fuel_type === 'DIESEL') {
+        unitPrice = 20000; // VNĐ / Lít (Dầu DO)
+      } else {
+        unitPrice = 22500; // VNĐ / Lít (Xăng RON 95)
+      }
+    }
+    const consumption = vehicle.fuel_consumption || 7.0;
+    const distanceKm = route.distance_km || 0;
+    const estimatedFuelCost = Math.round(((distanceKm / 100) * consumption) * unitPrice);
+
+    // 7. Tạo chuyến xe kèm lưu Snapshot sức chứa và chi phí nhiên liệu
     const trip = await prisma.trip.create({
       data: {
         code,
@@ -132,6 +157,8 @@ export class TripService {
         seats_reserved: 0,
         cargo_area_reserved_m2: 0,
         cargo_weight_reserved_kg: 0,
+        estimated_fuel_cost: estimatedFuelCost,
+        fuel_price: unitPrice,
         status: trip_status.OPEN,
       },
       include: {
@@ -285,6 +312,22 @@ export class TripService {
       departure_time: { gt: minDepartureTime },
     };
 
+    if (filters.departure_date) {
+      const depDate = new Date(filters.departure_date);
+      if (!isNaN(depDate.getTime())) {
+        const startOfDay = new Date(depDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(depDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        whereClause.departure_time = {
+          gt: minDepartureTime,
+          gte: startOfDay > minDepartureTime ? startOfDay : minDepartureTime,
+          lte: endOfDay,
+        };
+      }
+    }
+
     if (filters.origin_name) {
       whereClause.origin_name = { contains: filters.origin_name, mode: 'insensitive' };
     }
@@ -317,26 +360,72 @@ export class TripService {
       orderBy: { departure_time: 'asc' },
     });
 
-    // Lọc theo sức chứa nếu có yêu cầu
-    return trips.filter((trip) => {
+    const hasCoords =
+      filters.pickup_lat !== undefined &&
+      filters.pickup_lng !== undefined &&
+      filters.dropoff_lat !== undefined &&
+      filters.dropoff_lng !== undefined;
+
+    const matchedTrips: any[] = [];
+
+    for (const trip of trips) {
+      // 1. Lọc theo sức chứa nếu có yêu cầu
       if (filters.type === 'RIDE' && filters.passenger_count) {
         const availableSeats = trip.seats_total - trip.seats_reserved;
-        if (availableSeats < filters.passenger_count) return false;
+        if (availableSeats < filters.passenger_count) continue;
       }
 
       if (filters.type === 'PACKAGE') {
         if (filters.cargo_weight_kg) {
           const availableWeight = trip.cargo_weight_total_kg - trip.cargo_weight_reserved_kg;
-          if (availableWeight < filters.cargo_weight_kg) return false;
+          if (availableWeight < filters.cargo_weight_kg) continue;
         }
         if (filters.cargo_area_m2) {
           const availableArea = trip.cargo_area_total_m2 - trip.cargo_area_reserved_m2;
-          if (availableArea < filters.cargo_area_m2) return false;
+          if (availableArea < filters.cargo_area_m2) continue;
         }
       }
 
-      return true;
-    });
+      // 2. So sánh khoảng cách trắc địa điểm đón <= 15km và điểm trả <= 15km
+      if (hasCoords) {
+        const pickupDist = calculateHaversineDistanceKm(
+          filters.pickup_lat!,
+          filters.pickup_lng!,
+          trip.origin_lat,
+          trip.origin_lng
+        );
+        const dropoffDist = calculateHaversineDistanceKm(
+          filters.dropoff_lat!,
+          filters.dropoff_lng!,
+          trip.dest_lat,
+          trip.dest_lng
+        );
+
+        // Bỏ qua chuyến nếu điểm đón > 15km HOẶC điểm trả > 15km
+        if (pickupDist > 15 || dropoffDist > 15) {
+          continue;
+        }
+
+        matchedTrips.push({
+          ...trip,
+          pickup_distance_km: pickupDist,
+          dropoff_distance_km: dropoffDist,
+        });
+      } else {
+        matchedTrips.push(trip);
+      }
+    }
+
+    if (hasCoords) {
+      // Sắp xếp ưu tiên các chuyến có cự ly đón + trả gần nhất
+      matchedTrips.sort((a, b) => {
+        const sumA = (a.pickup_distance_km || 0) + (a.dropoff_distance_km || 0);
+        const sumB = (b.pickup_distance_km || 0) + (b.dropoff_distance_km || 0);
+        return sumA - sumB;
+      });
+    }
+
+    return matchedTrips;
   }
 }
 

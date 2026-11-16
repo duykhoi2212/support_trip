@@ -292,8 +292,14 @@ export const MyTrips: React.FC = () => {
                     <span>Dự kiến đến (ETA): {formatDateTime(trip.eta)}</span>
                   </div>
                   {trip.distance_km && (
-                    <div className="text-[11px] text-slate-400 pt-1">
-                      Lộ trình: {trip.distance_km} km ({Math.floor((trip.duration_min || 0) / 60)}h {(trip.duration_min || 0) % 60}m)
+                    <div className="text-[11px] text-slate-400 pt-1 flex items-center justify-between">
+                      <span>Lộ trình: {trip.distance_km} km ({Math.floor((trip.duration_min || 0) / 60)}h {(trip.duration_min || 0) % 60}m)</span>
+                      {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
+                        <span className="font-bold text-emerald-700">
+                          {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'Sạc: ' : 'Xăng/dầu: '}
+                          {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

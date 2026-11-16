@@ -17,6 +17,7 @@ export const createTripSchema = z.object({
     (val) => !val || !isNaN(Date.parse(val)),
     { message: 'Định dạng ngày giờ kết thúc không hợp lệ' }
   ),
+  fuel_price: z.coerce.number().min(0).optional(),
 });
 
 export const cancelTripSchema = z.object({
@@ -29,6 +30,10 @@ export const cancelTripSchema = z.object({
 export const searchTripsSchema = z.object({
   origin_name: z.string().optional(),
   dest_name: z.string().optional(),
+  pickup_lat: z.coerce.number().optional(),
+  pickup_lng: z.coerce.number().optional(),
+  dropoff_lat: z.coerce.number().optional(),
+  dropoff_lng: z.coerce.number().optional(),
   departure_date: z.string().optional(),
   type: z.enum(['RIDE', 'PACKAGE']).optional(),
   passenger_count: z.coerce.number().optional(),

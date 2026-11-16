@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   ChevronRight,
   Filter,
-  Car
+  Car,
+  Fuel
 } from 'lucide-react';
 import { requestService } from '../../services/requestService';
 import { TransportRequest, RequestStatus } from '../../types';
@@ -344,6 +345,24 @@ export const MyRequests: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Khoản hỗ trợ chi phí nhiên liệu/sạc tự nguyện */}
+                  {req.shared_fuel_cost !== undefined && req.shared_fuel_cost !== null && req.shared_fuel_cost > 0 && (
+                    <div className="p-3 rounded-2xl bg-teal-50 border border-teal-200 text-teal-900 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center text-teal-800">
+                          <Fuel className="w-4 h-4 mr-1 text-teal-600" />
+                          Hỗ trợ nhiên liệu/sạc chia sẻ:
+                        </span>
+                        <span className="font-black text-teal-950 text-sm">
+                          {req.shared_fuel_cost.toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-teal-700/80 italic leading-snug">
+                        * Chi phí thực tế chia đều cho các thành viên khi xe khởi hành. Khoản đóng góp tự nguyện gửi trực tiếp cho tài xế.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Lý do từ chối hoặc hủy */}
                   {req.status === 'REJECTED' && req.reject_reason && (

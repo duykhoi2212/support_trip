@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { vehicle_type } from '@prisma/client';
+import { vehicle_type, fuel_type } from '@prisma/client';
 
 export const createVehicleSchema = z.object({
-  type: z.enum([vehicle_type.MOTORBIKE, vehicle_type.CAR, vehicle_type.VAN, vehicle_type.TRUCK], {
-    required_error: 'Vui lòng chọn loại phương tiện',
+  type: z.enum([vehicle_type.CAR, vehicle_type.VAN, vehicle_type.TRUCK], {
+    required_error: 'Vui lòng chọn loại phương tiện (Ô tô, Xe Van hoặc Xe Tải)',
   }),
   plate_number: z
     .string({ required_error: 'Vui lòng nhập biển số xe' })
@@ -24,6 +24,24 @@ export const createVehicleSchema = z.object({
     .number()
     .min(0, 'Tải trọng khoang hàng không thể âm')
     .default(0),
+  fuel_type: z
+    .enum([fuel_type.GASOLINE, fuel_type.DIESEL, fuel_type.ELECTRIC], {
+      required_error: 'Vui lòng chọn loại nhiên liệu (Xăng, Dầu hoặc Điện)',
+    })
+    .default(fuel_type.GASOLINE),
+  fuel_consumption: z.coerce
+    .number({ required_error: 'Vui lòng nhập mức tiêu thụ nhiên liệu/điện' })
+    .min(0.1, 'Mức tiêu thụ phải lớn hơn 0')
+    .default(7.0),
+  inspection_expiry_date: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => {
+      if (!val) return true;
+      const d = new Date(val);
+      return !isNaN(d.getTime());
+    }, 'Ngày hết hạn đăng kiểm không hợp lệ'),
 });
 
 export const updateVehicleSchema = z.object({
@@ -42,5 +60,19 @@ export const updateVehicleSchema = z.object({
     .number()
     .min(0, 'Tải trọng khoang hàng không thể âm')
     .optional(),
+  fuel_type: z.enum([fuel_type.GASOLINE, fuel_type.DIESEL, fuel_type.ELECTRIC]).optional(),
+  fuel_consumption: z.coerce
+    .number()
+    .min(0.1, 'Mức tiêu thụ phải lớn hơn 0')
+    .optional(),
+  inspection_expiry_date: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => {
+      if (!val) return true;
+      const d = new Date(val);
+      return !isNaN(d.getTime());
+    }, 'Ngày hết hạn đăng kiểm không hợp lệ'),
 });
 

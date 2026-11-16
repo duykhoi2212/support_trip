@@ -38,6 +38,11 @@ export const tripService = {
   async searchTrips(filters: {
     origin_name?: string;
     dest_name?: string;
+    pickup_lat?: number;
+    pickup_lng?: number;
+    dropoff_lat?: number;
+    dropoff_lng?: number;
+    departure_date?: string;
     type?: 'RIDE' | 'PACKAGE';
     passenger_count?: number;
     cargo_weight_kg?: number;

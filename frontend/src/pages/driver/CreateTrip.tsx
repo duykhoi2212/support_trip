@@ -15,7 +15,10 @@ import {
   Search,
   RotateCcw,
   Milestone,
-  Route as RouteIcon
+  Route as RouteIcon,
+  Zap,
+  Fuel,
+  FileText
 } from 'lucide-react';
 import { vehicleService } from '../../services/vehicleService';
 import { tripService } from '../../services/tripService';
@@ -282,6 +285,18 @@ export const CreateTrip: React.FC = () => {
       return;
     }
 
+    if (
+      selectedVehicle?.inspection_expiry_date &&
+      new Date(selectedVehicle.inspection_expiry_date) < new Date(departureTime)
+    ) {
+      setErrorMessage(
+        `Phương tiện (${selectedVehicle.plate_number}) có hạn kiểm định đến ${new Date(
+          selectedVehicle.inspection_expiry_date
+        ).toLocaleDateString('vi-VN')}, sẽ hết hạn trước thời gian khởi hành. Vui lòng cập nhật sổ đăng kiểm mới trước khi tạo chuyến.`
+      );
+      return;
+    }
+
     if (!isDepartureValid()) {
       setErrorMessage('Thời gian khởi hành phải cách hiện tại ít nhất 24 giờ theo quy định của GoX.');
       return;
@@ -411,27 +426,92 @@ export const CreateTrip: React.FC = () => {
               >
                 {vehicles.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.brand_model || 'Phương tiện'} – {v.plate_number} ({v.type === 'CAR' ? 'Ô tô' : v.type === 'VAN' ? 'Xe Van' : v.type === 'TRUCK' ? 'Xe Tải' : 'Xe máy'})
+                    {v.brand_model || 'Phương tiện'} – {v.plate_number} ({v.type === 'CAR' ? 'Ô tô' : v.type === 'VAN' ? 'Xe Van' : 'Xe Tải'})
                   </option>
                 ))}
               </select>
 
-              {/* Chi tiết sức chứa snapshot */}
+              {/* Chi tiết sức chứa snapshot & Nhiên liệu */}
               {selectedVehicle && (
-                <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800">
-                    <span className="block text-[11px] text-emerald-600 font-medium">Ghế chia sẻ</span>
-                    <span className="text-base font-bold">{selectedVehicle.seat_count}</span> chỗ
+                <>
+                  <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800">
+                      <span className="block text-[11px] text-emerald-600 font-medium">Ghế chia sẻ</span>
+                      <span className="text-base font-bold">{selectedVehicle.seat_count}</span> chỗ
+                    </div>
+                    <div className="p-2 rounded-xl bg-amber-50 text-amber-800">
+                      <span className="block text-[11px] text-amber-600 font-medium">Cốp chứa hàng</span>
+                      <span className="text-base font-bold">{selectedVehicle.cargo_area_m2}</span> m²
+                    </div>
+                    <div className="p-2 rounded-xl bg-blue-50 text-blue-800">
+                      <span className="block text-[11px] text-blue-600 font-medium">Khối lượng tối đa</span>
+                      <span className="text-base font-bold">{selectedVehicle.cargo_max_kg}</span> kg
+                    </div>
                   </div>
-                  <div className="p-2 rounded-xl bg-amber-50 text-amber-800">
-                    <span className="block text-[11px] text-amber-600 font-medium">Cốp chứa hàng</span>
-                    <span className="text-base font-bold">{selectedVehicle.cargo_area_m2}</span> m²
+
+                  {/* Thông tin nhiên liệu & Đăng kiểm */}
+                  <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 flex items-center font-medium">
+                        {selectedVehicle.fuel_type === 'ELECTRIC' ? (
+                          <Zap className="w-3.5 h-3.5 mr-1 text-cyan-600" />
+                        ) : (
+                          <Fuel className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                        )}
+                        Loại nhiên liệu:
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {selectedVehicle.fuel_type === 'ELECTRIC'
+                          ? '⚡ Điện (EV)'
+                          : selectedVehicle.fuel_type === 'DIESEL'
+                          ? '⛽ Dầu Diesel'
+                          : '⛽ Xăng (RON 95)'}{' '}
+                        • {selectedVehicle.fuel_consumption || (selectedVehicle.fuel_type === 'ELECTRIC' ? 12.5 : 7.0)}{' '}
+                        {selectedVehicle.fuel_type === 'ELECTRIC' ? 'kWh/100km' : 'L/100km'}
+                      </span>
+                    </div>
+
+                    {selectedVehicle.inspection_expiry_date && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 flex items-center font-medium">
+                          <FileText className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                          Hạn đăng kiểm:
+                        </span>
+                        <span
+                          className={`font-bold ${
+                            new Date(selectedVehicle.inspection_expiry_date) < new Date(departureTime || Date.now())
+                              ? 'text-rose-600'
+                              : 'text-emerald-700'
+                          }`}
+                        >
+                          {new Date(selectedVehicle.inspection_expiry_date).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                    )}
+
+                    {routeResult && (
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-emerald-800 font-bold">
+                        <span>
+                          Dự kiến chi phí {selectedVehicle.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'}:
+                        </span>
+                        <span className="text-sm text-emerald-700">
+                          ~
+                          {Math.round(
+                            ((routeResult.distance_km / 100) *
+                              (selectedVehicle.fuel_consumption ||
+                                (selectedVehicle.fuel_type === 'ELECTRIC' ? 12.5 : 7.0))) *
+                              (selectedVehicle.fuel_type === 'ELECTRIC'
+                                ? 3850
+                                : selectedVehicle.fuel_type === 'DIESEL'
+                                ? 20000
+                                : 22500)
+                          ).toLocaleString('vi-VN')}{' '}
+                          đ
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="p-2 rounded-xl bg-blue-50 text-blue-800">
-                    <span className="block text-[11px] text-blue-600 font-medium">Khối lượng tối đa</span>
-                    <span className="text-base font-bold">{selectedVehicle.cargo_max_kg}</span> kg
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -780,7 +860,7 @@ export const CreateTrip: React.FC = () => {
                   ))}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2">
-                  * Hệ thống dùng các trục đường này và bán kính 2km để đối chiếu khi người dùng gửi yêu cầu đón/trả dọc đường.
+                  * Hệ thống tự động so khớp điểm đón/trả của hành khách trong phạm vi 15km so với điểm xuất phát và kết thúc của chuyến xe.
                 </p>
               </div>
             )}
