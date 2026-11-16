@@ -15,6 +15,7 @@ tripRouter.get('/driver/history', authenticateToken, requireRole([user_role.DRIV
 tripRouter.post('/', authenticateToken, requireRole([user_role.DRIVER]), TripController.create);
 tripRouter.get('/mine', authenticateToken, requireRole([user_role.DRIVER]), TripController.getMyTrips);
 tripRouter.post('/:id/cancel', authenticateToken, requireRole([user_role.DRIVER]), TripController.cancel);
+tripRouter.post('/:id/cancel-in-progress', authenticateToken, requireRole([user_role.DRIVER]), TripController.cancelInProgress);
 
 // Chi tiết chuyến xe (Đặt sau cùng để tránh nuốt các route tĩnh)
 tripRouter.get('/:id', TripController.getById);

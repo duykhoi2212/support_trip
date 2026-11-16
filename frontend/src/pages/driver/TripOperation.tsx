@@ -12,7 +12,11 @@ import {
   Maximize2,
   User,
   Box,
-  Fuel
+  Fuel,
+  AlertTriangle,
+  CheckCheck,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { requestService } from '../../services/requestService';
@@ -40,6 +44,20 @@ export const TripOperation: React.FC = () => {
 
   // Modal Xem ảnh phóng to (Lightbox)
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Modal Hủy chuyến xe khẩn cấp khi đang di chuyển (gặp sự cố)
+  const [showEmergencyCancelModal, setShowEmergencyCancelModal] = useState<boolean>(false);
+  const [emergencyCancelReason, setEmergencyCancelReason] = useState<string>('');
+  const [cancellingEmergency, setCancellingEmergency] = useState<boolean>(false);
+
+  // Modal Báo cáo sự cố từng yêu cầu (Khách vắng mặt / không nghe máy)
+  const [reportModalReq, setReportModalReq] = useState<TransportRequest | null>(null);
+  const [reportReasonCode, setReportReasonCode] = useState<string>('ABSENT');
+  const [reportNote, setReportNote] = useState<string>('');
+  const [submittingReport, setSubmittingReport] = useState<boolean>(false);
+
+  // Batch loading
+  const [batchLoading, setBatchLoading] = useState<boolean>(false);
 
   const fetchTripAndRequests = async () => {
     if (!id) return;
@@ -161,6 +179,91 @@ export const TripOperation: React.FC = () => {
     }
   };
 
+  // Đón đủ tất cả khách và nhận đủ tất cả kiện hàng lên xe (Batch Pickup)
+  const handlePickupAll = async () => {
+    if (!trip) return;
+    if (!confirm('Xác nhận đã đón đầy đủ tất cả hành khách và nhận đủ kiện hàng lên xe?')) return;
+
+    setBatchLoading(true);
+    setMessage(null);
+    try {
+      const res = await requestService.pickupAll(trip.id);
+      setMessage({ type: 'success', text: res.message || 'Đã xác nhận đón toàn bộ khách và hàng lên xe thành công.' });
+      fetchTripAndRequests();
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err.response?.data?.error?.message || err.message || 'Không thể xác nhận đón hàng loạt.',
+      });
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // Trả đủ tất cả khách và giao đủ tất cả kiện hàng (Batch Dropoff)
+  const handleDropoffAll = async () => {
+    if (!trip) return;
+    if (!confirm('Xác nhận đã trả đầy đủ tất cả hành khách xuống xe và giao toàn bộ kiện hàng an toàn?')) return;
+
+    setBatchLoading(true);
+    setMessage(null);
+    try {
+      const res = await requestService.dropoffAll(trip.id);
+      setMessage({ type: 'success', text: res.message || 'Đã xác nhận trả toàn bộ khách và giao toàn bộ hàng thành công.' });
+      fetchTripAndRequests();
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err.response?.data?.error?.message || err.message || 'Không thể xác nhận trả hàng loạt.',
+      });
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // Báo cáo sự cố từng yêu cầu
+  const handleConfirmReportIssue = async () => {
+    if (!reportModalReq) return;
+    setSubmittingReport(true);
+    try {
+      const res = await requestService.reportIssue(reportModalReq.id, {
+        reason_code: reportReasonCode,
+        note: reportNote.trim() || undefined,
+      });
+      setMessage({ type: 'success', text: res.message });
+      setReportModalReq(null);
+      fetchTripAndRequests();
+    } catch (err: any) {
+      alert(err.response?.data?.error?.message || err.message || 'Lỗi khi báo cáo sự cố yêu cầu.');
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
+  // Hủy chuyến xe khẩn cấp khi đang di chuyển (gặp sự cố)
+  const handleConfirmEmergencyCancel = async () => {
+    if (!trip) return;
+    if (emergencyCancelReason.trim().length < 10) {
+      alert('Vui lòng nhập lý do sự cố chi tiết (tối thiểu 10 ký tự).');
+      return;
+    }
+
+    setCancellingEmergency(true);
+    try {
+      await tripService.cancelTripInProgress(trip.id, emergencyCancelReason.trim());
+      setMessage({
+        type: 'success',
+        text: `Chuyến xe ${trip.code} đã được hủy khẩn cấp do sự cố. Ban quản trị và hành khách đã được thông báo.`,
+      });
+      setShowEmergencyCancelModal(false);
+      fetchTripAndRequests();
+    } catch (err: any) {
+      alert(err.response?.data?.error?.message || err.message || 'Không thể hủy chuyến xe.');
+    } finally {
+      setCancellingEmergency(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
@@ -182,7 +285,17 @@ export const TripOperation: React.FC = () => {
   }
 
   const pendingRequests = requests.filter((r) => r.status === 'PENDING');
-  const onboardRequests = requests.filter((r) => r.status === 'ACCEPTED' || r.status === 'COMPLETED');
+  const onboardRequests = requests.filter(
+    (r) => r.status === 'ACCEPTED' || r.status === 'COMPLETED' || r.status === 'FAILED'
+  );
+
+  // Kiểm tra điều kiện bắt đầu hành trình: Tất cả yêu cầu ACCEPTED phải được PICKED_UP hoặc FAILED
+  const activeOnboard = requests.filter((r) => r.status === 'ACCEPTED');
+  const unconfirmedOnboard = activeOnboard.filter((r) => {
+    if (r.type === 'RIDE') return r.ride_progress !== 'PICKED_UP';
+    return r.package_items && r.package_items[0]?.status !== 'PICKED_UP';
+  });
+  const canStartTrip = unconfirmedOnboard.length === 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
@@ -208,6 +321,8 @@ export const TripOperation: React.FC = () => {
                     ? 'bg-amber-100 text-amber-800 border border-amber-200'
                     : trip.status === 'COMPLETED'
                     ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                    : trip.status === 'CANCELLED'
+                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
                     : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                 }`}
               >
@@ -215,6 +330,8 @@ export const TripOperation: React.FC = () => {
                   ? 'Đang di chuyển'
                   : trip.status === 'COMPLETED'
                   ? 'Đã kết thúc'
+                  : trip.status === 'CANCELLED'
+                  ? 'Đã hủy chuyến'
                   : 'Đang mở nhận yêu cầu'}
               </span>
             </div>
@@ -226,25 +343,57 @@ export const TripOperation: React.FC = () => {
           {/* Action buttons cho Chuyến xe */}
           <div className="flex items-center space-x-3">
             {(trip.status === 'OPEN' || trip.status === 'CLOSED') && (
-              <button
-                type="button"
-                onClick={handleStartTrip}
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 flex items-center space-x-1.5 transition-all"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Bắt đầu hành trình</span>
-              </button>
+              <div className="flex flex-col items-end">
+                <button
+                  type="button"
+                  disabled={!canStartTrip}
+                  onClick={handleStartTrip}
+                  className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-md flex items-center space-x-1.5 transition-all ${
+                    canStartTrip
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20 cursor-pointer'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-75 border border-slate-300'
+                  }`}
+                  title={
+                    !canStartTrip
+                      ? `Vui lòng xác nhận đón hoặc báo sự cố cho tất cả ${unconfirmedOnboard.length} yêu cầu trước khi khởi hành`
+                      : 'Bắt đầu khởi hành chuyến xe'
+                  }
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Bắt đầu hành trình</span>
+                </button>
+                {!canStartTrip && activeOnboard.length > 0 && (
+                  <span className="text-[10px] text-amber-700 mt-1 font-semibold flex items-center">
+                    <AlertTriangle className="w-3 h-3 mr-1 text-amber-600" />
+                    Còn {unconfirmedOnboard.length} yêu cầu chưa xác nhận đón/vắng mặt
+                  </span>
+                )}
+              </div>
             )}
 
             {trip.status === 'IN_PROGRESS' && (
-              <button
-                type="button"
-                onClick={handleCompleteTrip}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center space-x-1.5 transition-all"
-              >
-                <Flag className="w-4 h-4" />
-                <span>Kết thúc chuyến xe</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmergencyCancelReason('');
+                    setShowEmergencyCancelModal(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 flex items-center space-x-1.5 transition-all"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Hủy chuyến vì gặp sự cố</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCompleteTrip}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center space-x-1.5 transition-all"
+                >
+                  <Flag className="w-4 h-4" />
+                  <span>Kết thúc chuyến xe</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -471,14 +620,71 @@ export const TripOperation: React.FC = () => {
       {/* TAB 2: DANH SÁCH ĐÃ CHẤP NHẬN & ĐIỀU HÀNH TIẾN TRÌNH */}
       {activeTab === 'onboard' && (
         <div className="space-y-4">
-          {trip.status !== 'IN_PROGRESS' && trip.status !== 'COMPLETED' && onboardRequests.length > 0 && (
-            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-              <span>
-                <strong>Lưu ý:</strong> Vui lòng bấm <strong>"Bắt đầu hành trình"</strong> ở góc trên khi xe xuất phát. Sau khi bắt đầu hành trình, hệ thống sẽ chốt mức chia sẻ nhiên liệu cho từng yêu cầu và kích hoạt các nút "Đã đón khách" / "Đã nhận hàng".
-              </span>
+          {/* Thông báo hướng dẫn & Nút hành động hàng loạt (Batch Actions) */}
+          {trip.status !== 'IN_PROGRESS' && trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED' && (
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+              <div className="flex items-start space-x-2.5 text-xs text-emerald-950">
+                <CheckCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-emerald-900 font-bold mb-0.5">Xác nhận đón khách & nhận hàng tại điểm xuất phát:</strong>
+                  <p className="text-emerald-800">
+                    Vui lòng bấm <strong>"Đã đón khách lên xe"</strong> / <strong>"Đã nhận hàng vào cốp"</strong> (hoặc <strong>"Báo sự cố"</strong> nếu khách vắng mặt) cho từng yêu cầu.
+                    Sau khi xác nhận đầy đủ, nút <strong>"Bắt đầu hành trình"</strong> sẽ mở khóa để khởi hành và tính mức hỗ trợ nhiên liệu.
+                  </p>
+                </div>
+              </div>
+              {unconfirmedOnboard.length > 0 && (
+                <button
+                  type="button"
+                  disabled={batchLoading}
+                  onClick={handlePickupAll}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 flex items-center space-x-1.5 whitespace-nowrap disabled:opacity-50 flex-shrink-0 cursor-pointer transition-all"
+                >
+                  {batchLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-4 h-4" />
+                  )}
+                  <span>Đã đón đủ tất cả khách & kiện hàng</span>
+                </button>
+              )}
             </div>
           )}
+
+          {trip.status === 'IN_PROGRESS' && (
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+              <div className="flex items-start space-x-2.5 text-xs text-blue-950">
+                <CheckCheck className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-blue-900 font-bold mb-0.5">Thao tác trả khách & giao hàng nhanh:</strong>
+                  <p className="text-blue-800">
+                    Khi đã tới trạm đến, bạn có thể bấm 1 chạm để xác nhận trả toàn bộ khách và giao toàn bộ các kiện hàng trên xe.
+                  </p>
+                </div>
+              </div>
+              {onboardRequests.some(
+                (r) =>
+                  (r.ride_progress === 'PICKED_UP' || (r.package_items && r.package_items[0]?.status === 'PICKED_UP')) &&
+                  r.status !== 'COMPLETED' &&
+                  r.status !== 'FAILED'
+              ) && (
+                <button
+                  type="button"
+                  disabled={batchLoading}
+                  onClick={handleDropoffAll}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 flex items-center space-x-1.5 whitespace-nowrap disabled:opacity-50 flex-shrink-0 cursor-pointer transition-all"
+                >
+                  {batchLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCheck className="w-4 h-4" />
+                  )}
+                  <span>Đã trả đủ tất cả khách & kiện hàng</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {onboardRequests.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-500 text-xs shadow-sm">
               Chưa có hành khách hoặc kiện hàng nào được chấp nhận trên chuyến xe.
@@ -522,6 +728,10 @@ export const TripOperation: React.FC = () => {
                       {isCompleted ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                           Đã hoàn thành
+                        </span>
+                      ) : req.status === 'FAILED' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                          Thất bại ({req.fail_reason_code || 'Sự cố'})
                         </span>
                       ) : (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
@@ -612,66 +822,94 @@ export const TripOperation: React.FC = () => {
                       <span>Chi tiết</span>
                     </button>
 
+                    {/* Nút Báo sự cố: Cho phép tài xế báo cáo khi khách vắng mặt hoặc gặp vấn đề để tính lại tiền */}
+                    {!isCompleted && req.status !== 'FAILED' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReportModalReq(req);
+                          setReportReasonCode('ABSENT');
+                          setReportNote('');
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors flex items-center space-x-1"
+                        title="Báo cáo khách vắng mặt hoặc sự cố để loại khỏi chuyến & tính lại chi phí"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Báo sự cố</span>
+                      </button>
+                    )}
+
                     {/* Tiến trình đi nhờ (RIDE) */}
-                    {isRide && !isCompleted && (
+                    {isRide && !isCompleted && req.status !== 'FAILED' && (
                       <>
                         {req.ride_progress === 'NOT_PICKED_UP' && (
                           <button
                             type="button"
-                            disabled={trip.status !== 'IN_PROGRESS' || actionLoadingId === req.id}
+                            disabled={actionLoadingId === req.id}
                             onClick={() => handleUpdateProgress(req.id, { ride_progress: 'PICKED_UP' })}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                              trip.status === 'IN_PROGRESS'
-                                ? 'text-white bg-amber-500 hover:bg-amber-600 shadow-sm cursor-pointer'
-                                : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed opacity-70'
-                            }`}
-                            title={trip.status !== 'IN_PROGRESS' ? "Vui lòng bấm 'Bắt đầu hành trình' trước khi đón khách" : "Xác nhận đã đón khách lên xe"}
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-sm transition-all"
+                            title="Xác nhận khách đã lên xe"
                           >
                             Đã đón khách lên xe
                           </button>
                         )}
                         {req.ride_progress === 'PICKED_UP' && (
-                          <button
-                            type="button"
-                            disabled={actionLoadingId === req.id}
-                            onClick={() => handleUpdateProgress(req.id, { ride_progress: 'DROPPED_OFF' })}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
-                          >
-                            Đã trả khách xuống xe
-                          </button>
+                          trip.status === 'IN_PROGRESS' ? (
+                            <button
+                              type="button"
+                              disabled={actionLoadingId === req.id}
+                              onClick={() => handleUpdateProgress(req.id, { ride_progress: 'DROPPED_OFF' })}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
+                            >
+                              Đã trả khách xuống xe
+                            </button>
+                          ) : (
+                            <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Đã lên xe (Chờ khởi hành)
+                            </span>
+                          )
                         )}
                       </>
                     )}
 
                     {/* Tiến trình gửi hàng (PACKAGE) */}
-                    {!isRide && !isCompleted && req.package_items && req.package_items[0] && (
+                    {!isRide && !isCompleted && req.status !== 'FAILED' && req.package_items && req.package_items[0] && (
                       <>
                         {req.package_items[0].status === 'AWAITING_PICKUP' && (
                           <button
                             type="button"
-                            disabled={trip.status !== 'IN_PROGRESS' || actionLoadingId === req.id}
+                            disabled={actionLoadingId === req.id}
                             onClick={() => handleUpdateProgress(req.id, { package_status: 'PICKED_UP' })}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                              trip.status === 'IN_PROGRESS'
-                                ? 'text-white bg-amber-500 hover:bg-amber-600 shadow-sm cursor-pointer'
-                                : 'text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed opacity-70'
-                            }`}
-                            title={trip.status !== 'IN_PROGRESS' ? "Vui lòng bấm 'Bắt đầu hành trình' trước khi nhận hàng" : "Xác nhận đã nhận hàng vào cốp"}
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 shadow-sm transition-all"
+                            title="Xác nhận đã nhận hàng vào cốp"
                           >
                             Đã nhận hàng vào cốp
                           </button>
                         )}
                         {req.package_items[0].status === 'PICKED_UP' && (
-                          <button
-                            type="button"
-                            disabled={actionLoadingId === req.id}
-                            onClick={() => handleUpdateProgress(req.id, { package_status: 'DELIVERED' })}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
-                          >
-                            Đã giao hàng thành công
-                          </button>
+                          trip.status === 'IN_PROGRESS' ? (
+                            <button
+                              type="button"
+                              disabled={actionLoadingId === req.id}
+                              onClick={() => handleUpdateProgress(req.id, { package_status: 'DELIVERED' })}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors"
+                            >
+                              Đã giao hàng thành công
+                            </button>
+                          ) : (
+                            <span className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Đã nhận hàng (Chờ khởi hành)
+                            </span>
+                          )
                         )}
                       </>
+                    )}
+
+                    {req.status === 'FAILED' && (
+                      <span className="text-xs font-semibold text-rose-600 flex items-center px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200">
+                        <XCircle className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                        Đã loại khỏi chuyến
+                      </span>
                     )}
 
                     {isCompleted && (
@@ -1004,6 +1242,130 @@ export const TripOperation: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Báo cáo sự cố từng yêu cầu (Khách vắng mặt / không đến / sai hàng) */}
+      {reportModalReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in duration-200">
+            <div className="flex items-center space-x-2 text-rose-600 mb-2">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <h3 className="text-lg font-bold text-slate-900">Báo sự cố yêu cầu {reportModalReq.code}</h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Nếu hành khách không có mặt, không nghe máy hoặc thông tin không chính xác, hệ thống sẽ hủy yêu cầu này, hoàn trả chỗ trống và <strong>tự động tính lại chi phí nhiên liệu chia đều</strong> cho các thành viên còn lại trên xe.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Lý do sự cố</label>
+                <select
+                  value={reportReasonCode}
+                  onChange={(e) => setReportReasonCode(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                >
+                  <option value="ABSENT">Khách không có mặt tại điểm đón (No-show) - Phạt khách</option>
+                  <option value="UNREACHABLE">Không liên lạc được / Tắt máy - Phạt khách</option>
+                  <option value="WRONG_INFO">Thông tin sai lệch / Hàng hóa vi phạm - Phạt khách</option>
+                  <option value="OTHER">Lý do bất khả kháng / Khách báo bận - Không phạt</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Ghi chú chi tiết (tùy chọn)</label>
+                <textarea
+                  value={reportNote}
+                  onChange={(e) => setReportNote(e.target.value)}
+                  placeholder="Mô tả cụ thể (Ví dụ: Gọi 3 cuộc không nghe máy, đã chờ quá 15 phút so với giờ hẹn...)"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReportModalReq(null)}
+                  disabled={submittingReport}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingReport}
+                  onClick={handleConfirmReportIssue}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 disabled:opacity-50 transition-all flex items-center space-x-1.5"
+                >
+                  {submittingReport ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <span>Xác nhận & Tính lại chi phí</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Hủy chuyến xe khẩn cấp khi đang di chuyển (IN_PROGRESS) */}
+      {showEmergencyCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in duration-200">
+            <div className="flex items-center space-x-2 text-rose-600 mb-2">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <h3 className="text-lg font-bold text-slate-900">Hủy chuyến xe vì sự cố khẩn cấp</h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Chỉ dùng khi xe gặp sự cố hỏng hóc, tai nạn, thời tiết nguy hiểm hoặc sức khỏe không đảm bảo. Hệ thống sẽ hủy chuyến ngay lập tức, thông báo cho hành khách và gửi hồ sơ sự cố tới <strong>Quản trị viên (Admin)</strong> để thẩm tra.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Lý do khẩn cấp chi tiết <span className="text-rose-500">*</span> (tối thiểu 10 ký tự)
+                </label>
+                <textarea
+                  value={emergencyCancelReason}
+                  onChange={(e) => setEmergencyCancelReason(e.target.value)}
+                  placeholder="Ví dụ: Xe bị nổ lốp trên đường cao tốc không thể tiếp tục di chuyển, đã gọi cứu hộ..."
+                  rows={4}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEmergencyCancelModal(false)}
+                  disabled={cancellingEmergency}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  disabled={cancellingEmergency || emergencyCancelReason.trim().length < 10}
+                  onClick={handleConfirmEmergencyCancel}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 disabled:opacity-50 transition-all flex items-center space-x-1.5"
+                >
+                  {cancellingEmergency ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang xử lý hủy...</span>
+                    </>
+                  ) : (
+                    <span>Xác nhận hủy khẩn cấp</span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

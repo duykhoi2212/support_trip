@@ -99,6 +99,36 @@ export const requestService = {
   },
 
   /**
+   * Đón đủ tất cả khách và nhận đủ tất cả kiện hàng lên xe
+   */
+  async pickupAll(tripId: string): Promise<{ message: string }> {
+    const res = await api.post<ApiSuccessResponse<{ message: string }>>(`/requests/trip/${tripId}/pickup-all`);
+    return res.data.data;
+  },
+
+  /**
+   * Trả đủ tất cả khách và giao đủ tất cả kiện hàng
+   */
+  async dropoffAll(tripId: string): Promise<{ message: string }> {
+    const res = await api.post<ApiSuccessResponse<{ message: string }>>(`/requests/trip/${tripId}/dropoff-all`);
+    return res.data.data;
+  },
+
+  /**
+   * Tài xế báo cáo sự cố từng yêu cầu (Khách vắng mặt, không liên lạc được...)
+   */
+  async reportIssue(
+    requestId: string,
+    data: { reason_code: string; note?: string }
+  ): Promise<{ message: string; request: TransportRequest }> {
+    const res = await api.post<ApiSuccessResponse<{ message: string; request: TransportRequest }>>(
+      `/requests/${requestId}/report-issue`,
+      data
+    );
+    return res.data.data;
+  },
+
+  /**
    * Tài xế kết thúc chuyến xe
    */
   async completeTrip(tripId: string): Promise<Trip> {

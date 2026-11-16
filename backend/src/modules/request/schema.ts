@@ -58,3 +58,10 @@ export const updateProgressSchema = z.object({
   fail_reason_code: z.nativeEnum(fail_reason_code).optional(),
 });
 
+export const reportIssueSchema = z.object({
+  reason_code: z.nativeEnum(fail_reason_code, {
+    errorMap: () => ({ message: 'Vui lòng chọn mã lý do sự cố hợp lệ' }),
+  }),
+  note: z.string().trim().optional(),
+});
+

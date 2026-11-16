@@ -35,6 +35,13 @@ export const tripService = {
     return res.data.data;
   },
 
+  async cancelTripInProgress(id: string, reason: string): Promise<Trip> {
+    const res = await api.post<ApiSuccessResponse<Trip>>(`/trips/${id}/cancel-in-progress`, {
+      reason,
+    });
+    return res.data.data;
+  },
+
   async searchTrips(filters: {
     origin_name?: string;
     dest_name?: string;

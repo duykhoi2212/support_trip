@@ -155,6 +155,8 @@ export interface TransportRequest {
   shared_fuel_cost?: number | null;
   reject_reason?: string | null;
   cancel_reason?: string | null;
+  fail_reason_code?: string | null;
+  counts_toward_cancel_rate?: boolean;
   cancelled_by?: string | null;
   decided_at?: string | null;
   created_at: string;

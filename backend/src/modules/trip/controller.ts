@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { TripService } from './service.js';
-import { createTripSchema, cancelTripSchema, searchTripsSchema } from './schema.js';
+import { createTripSchema, cancelTripSchema, cancelTripInProgressSchema, searchTripsSchema } from './schema.js';
 import { AuthenticatedRequest } from '../../middlewares/auth.js';
 import { AppError } from '../../middlewares/errorHandler.js';
 import { trip_status } from '@prisma/client';
@@ -63,6 +63,23 @@ export class TripController {
         success: true,
         data: trip,
         message: 'Hủy chuyến xe thành công.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async cancelInProgress(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
+      const tripId = BigInt(req.params.id);
+      const validated = cancelTripInProgressSchema.parse(req.body);
+
+      const trip = await TripService.cancelTripInProgress(req.user.id, tripId, validated);
+      res.status(200).json({
+        success: true,
+        data: trip,
+        message: 'Hủy chuyến xe khẩn cấp do sự cố thành công.',
       });
     } catch (error) {
       next(error);

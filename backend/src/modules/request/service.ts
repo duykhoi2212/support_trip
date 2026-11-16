@@ -6,6 +6,7 @@ import {
   trip_status,
   actor_type,
   fail_reason_code,
+  incident_status,
 } from '@prisma/client';
 import { prisma } from '../../utils/prisma.js';
 import { AppError } from '../../middlewares/errorHandler.js';
@@ -17,6 +18,7 @@ import {
   rejectRequestSchema,
   cancelRequestSchema,
   updateProgressSchema,
+  reportIssueSchema,
 } from './schema.js';
 import { z } from 'zod';
 
@@ -588,7 +590,45 @@ export class RequestService {
   }
 
   /**
+   * Tính toán và cập nhật lại chi phí nhiên liệu/sạc chia sẻ cho các yêu cầu còn lại trên chuyến xe
+   */
+  static async recalculateFuelCost(tx: any, tripId: bigint) {
+    const trip = await tx.trip.findUnique({
+      where: { id: tripId },
+      include: { vehicle: true },
+    });
+
+    if (!trip || !trip.estimated_fuel_cost || trip.estimated_fuel_cost <= 0) return;
+
+    // Lấy các yêu cầu hợp lệ đang tham gia chuyến (ACCEPTED hoặc COMPLETED, không FAILED/CANCELLED)
+    const validRequests = await tx.transportRequest.findMany({
+      where: {
+        trip_id: tripId,
+        status: { in: [request_status.ACCEPTED, request_status.COMPLETED] },
+      },
+    });
+
+    const totalUnits = validRequests.reduce((sum: number, req: any) => {
+      const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
+      return sum + units;
+    }, 0);
+
+    const costPerUnit = totalUnits > 0 ? Math.round(trip.estimated_fuel_cost / totalUnits) : 0;
+
+    for (const req of validRequests) {
+      const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
+      await tx.transportRequest.update({
+        where: { id: req.id },
+        data: { shared_fuel_cost: costPerUnit * units },
+      });
+    }
+
+    return { totalUnits, costPerUnit };
+  }
+
+  /**
    * DR-03: Tài xế bắt đầu chuyến xe (Chuyển sang IN_PROGRESS)
+   * Ràng buộc: Tất cả yêu cầu ACCEPTED phải được tài xế xác nhận đón (PICKED_UP) hoặc báo vắng (FAILED)
    */
   static async startTrip(driverId: bigint, tripId: bigint) {
     const trip = await prisma.trip.findFirst({
@@ -604,6 +644,29 @@ export class RequestService {
       throw new AppError(400, 'INVALID_TRIP_STATUS', 'Chỉ có thể bắt đầu chuyến xe ở trạng thái OPEN hoặc CLOSED.');
     }
 
+    // 1. Lấy danh sách tất cả yêu cầu đã được ACCEPTED trên chuyến xe
+    const acceptedRequests = await prisma.transportRequest.findMany({
+      where: { trip_id: tripId, status: request_status.ACCEPTED },
+      include: { package_items: true },
+    });
+
+    // 2. Ràng buộc: Yêu cầu tài xế phải đón hoặc báo sự cố cho tất cả các khách trước khi xe lăn bánh
+    const unconfirmedRequests = acceptedRequests.filter((req) => {
+      if (req.type === request_type.RIDE) {
+        return req.ride_progress !== ride_progress.PICKED_UP;
+      } else {
+        return req.package_items.some((item) => item.status !== package_status.PICKED_UP);
+      }
+    });
+
+    if (unconfirmedRequests.length > 0) {
+      throw new AppError(
+        400,
+        'UNCONFIRMED_REQUESTS',
+        `Vui lòng xác nhận đón hoặc báo sự cố vắng mặt cho tất cả ${acceptedRequests.length} yêu cầu trước khi bắt đầu hành trình. Còn ${unconfirmedRequests.length} yêu cầu chưa được xác nhận.`
+      );
+    }
+
     const updatedTrip = await prisma.trip.update({
       where: { id: tripId },
       data: {
@@ -612,12 +675,7 @@ export class RequestService {
       },
     });
 
-    // Lấy danh sách tất cả yêu cầu đã được ACCEPTED trên chuyến xe
-    const acceptedRequests = await prisma.transportRequest.findMany({
-      where: { trip_id: tripId, status: request_status.ACCEPTED },
-    });
-
-    // Tính tổng số suất tham gia (Đi nhờ: passenger_count người, Gửi hàng: 1 kiện)
+    // 3. Tính toán chốt chi phí nhiên liệu/sạc cho các khách thực tế có mặt trên xe
     const totalParticipantUnits = acceptedRequests.reduce((sum, req) => {
       const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
       return sum + units;
@@ -628,9 +686,6 @@ export class RequestService {
     if (totalParticipantUnits > 0 && trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0) {
       costPerUnit = Math.round(trip.estimated_fuel_cost / totalParticipantUnits);
 
-      // Cập nhật chi phí nhiên liệu chia sẻ vào từng yêu cầu:
-      // Đi nhờ n người = costPerUnit * n (ví dụ đặt 2 người thì tính x2)
-      // Gửi 1 kiện hàng = costPerUnit * 1
       for (const req of acceptedRequests) {
         const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
         const reqFuelCost = costPerUnit * units;
@@ -655,7 +710,7 @@ export class RequestService {
       await NotificationService.createNotification({
         userId: req.user_id,
         type: 'TRIP_STARTED',
-        content: `Chuyến xe ${trip.code} đã chính thức khởi hành!${costMsg} Hãy chuẩn bị để lên xe.`,
+        content: `Chuyến xe ${trip.code} đã chính thức khởi hành!${costMsg} Chúc bạn một chuyến đi an toàn.`,
         refType: 'TRIP',
         refId: trip.id,
       });
@@ -665,7 +720,7 @@ export class RequestService {
       await NotificationService.createNotification({
         userId: driverId,
         type: 'TRIP_STARTED',
-        content: `Chuyến xe ${trip.code} đã bắt đầu! Đã chốt chi phí ${fuelLabel} chia sẻ: ${costPerUnit.toLocaleString('vi-VN')} đ/người (Tổng ${totalParticipantUnits} người/suất tham gia từ ${acceptedRequests.length} yêu cầu).`,
+        content: `Chuyến xe ${trip.code} đã bắt đầu! Đã chốt chi phí ${fuelLabel} chia sẻ: ${costPerUnit.toLocaleString('vi-VN')} đ/người (Tổng ${totalParticipantUnits} người/suất tham gia thực tế từ ${acceptedRequests.length} yêu cầu).`,
         refType: 'TRIP',
         refId: trip.id,
       });
@@ -699,8 +754,24 @@ export class RequestService {
       throw new AppError(403, 'FORBIDDEN', 'Bạn không có quyền điều hành yêu cầu này.');
     }
 
-    if (request.trip.status !== trip_status.IN_PROGRESS) {
-      throw new AppError(400, 'TRIP_NOT_STARTED', 'Chuyến xe chưa bắt đầu hành trình. Vui lòng bấm Bắt đầu hành trình trước khi đón khách hoặc nhận hàng.');
+    // Cho phép đón khách (PICKED_UP) khi chuyến đang OPEN, CLOSED hoặc IN_PROGRESS!
+    if (input.ride_progress === ride_progress.PICKED_UP || input.package_status === package_status.PICKED_UP) {
+      if (
+        request.trip.status !== trip_status.OPEN &&
+        request.trip.status !== trip_status.CLOSED &&
+        request.trip.status !== trip_status.IN_PROGRESS
+      ) {
+        throw new AppError(400, 'INVALID_TRIP_STATUS', 'Không thể đón khách khi chuyến xe đã kết thúc hoặc bị hủy.');
+      }
+    } else {
+      // Trả khách / Giao hàng (DROPPED_OFF / DELIVERED) bắt buộc xe phải đang chạy (IN_PROGRESS)
+      if (request.trip.status !== trip_status.IN_PROGRESS) {
+        throw new AppError(
+          400,
+          'TRIP_NOT_STARTED',
+          'Chuyến xe chưa bắt đầu hành trình. Vui lòng bấm Bắt đầu hành trình trước khi trả khách hoặc giao hàng.'
+        );
+      }
     }
 
     if (request.status !== request_status.ACCEPTED) {
@@ -895,6 +966,266 @@ export class RequestService {
       driver_id: completedTrip.driver_id.toString(),
       vehicle_id: completedTrip.vehicle_id.toString(),
     };
+  }
+
+  /**
+   * Đón đủ tất cả khách và nhận đủ tất cả kiện hàng lên xe (Batch Pickup)
+   */
+  static async pickupAll(driverId: bigint, tripId: bigint) {
+    const trip = await prisma.trip.findFirst({
+      where: { id: tripId, driver_id: driverId },
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'TRIP_NOT_FOUND', 'Không tìm thấy chuyến xe.');
+    }
+
+    if (
+      trip.status !== trip_status.OPEN &&
+      trip.status !== trip_status.CLOSED &&
+      trip.status !== trip_status.IN_PROGRESS
+    ) {
+      throw new AppError(400, 'INVALID_TRIP_STATUS', 'Chuyến xe không ở trạng thái hợp lệ để đón khách.');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Cập nhật tất cả RIDE ACCEPTED chưa đón
+      await tx.transportRequest.updateMany({
+        where: {
+          trip_id: tripId,
+          status: request_status.ACCEPTED,
+          type: request_type.RIDE,
+          ride_progress: { not: ride_progress.PICKED_UP },
+        },
+        data: {
+          ride_progress: ride_progress.PICKED_UP,
+        },
+      });
+
+      // 2. Cập nhật tất cả PACKAGE ACCEPTED chưa nhận
+      const packageRequests = await tx.transportRequest.findMany({
+        where: {
+          trip_id: tripId,
+          status: request_status.ACCEPTED,
+          type: request_type.PACKAGE,
+        },
+        select: { id: true, user_id: true },
+      });
+
+      for (const req of packageRequests) {
+        await tx.packageItem.updateMany({
+          where: { request_id: req.id },
+          data: { status: package_status.PICKED_UP },
+        });
+      }
+
+      // 3. Gửi thông báo đến hành khách
+      const allAccepted = await tx.transportRequest.findMany({
+        where: { trip_id: tripId, status: request_status.ACCEPTED },
+        select: { user_id: true },
+      });
+
+      for (const req of allAccepted) {
+        await NotificationService.createNotification({
+          userId: req.user_id,
+          type: 'PROGRESS_UPDATE',
+          content: `Tài xế đã xác nhận đón toàn bộ hành khách và nhận kiện hàng lên xe trên chuyến ${trip.code}.`,
+          refType: 'TRIP',
+          refId: tripId,
+        });
+      }
+
+      return { message: 'Đã xác nhận đón toàn bộ khách và nhận đủ kiện hàng lên xe thành công.' };
+    });
+  }
+
+  /**
+   * Trả đủ tất cả khách và giao đủ tất cả kiện hàng (Batch Dropoff)
+   */
+  static async dropoffAll(driverId: bigint, tripId: bigint) {
+    const trip = await prisma.trip.findFirst({
+      where: { id: tripId, driver_id: driverId },
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'TRIP_NOT_FOUND', 'Không tìm thấy chuyến xe.');
+    }
+
+    if (trip.status !== trip_status.IN_PROGRESS) {
+      throw new AppError(400, 'TRIP_NOT_STARTED', 'Chuyến xe chưa ở trạng thái đang di chuyển (IN_PROGRESS).');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Cập nhật tất cả RIDE ACCEPTED -> DROPPED_OFF & COMPLETED
+      await tx.transportRequest.updateMany({
+        where: {
+          trip_id: tripId,
+          status: request_status.ACCEPTED,
+          type: request_type.RIDE,
+        },
+        data: {
+          ride_progress: ride_progress.DROPPED_OFF,
+          status: request_status.COMPLETED,
+        },
+      });
+
+      // 2. Cập nhật tất cả PACKAGE ACCEPTED -> DELIVERED & COMPLETED
+      const packageRequests = await tx.transportRequest.findMany({
+        where: {
+          trip_id: tripId,
+          status: request_status.ACCEPTED,
+          type: request_type.PACKAGE,
+        },
+        select: { id: true, user_id: true },
+      });
+
+      for (const req of packageRequests) {
+        await tx.packageItem.updateMany({
+          where: { request_id: req.id },
+          data: { status: package_status.DELIVERED },
+        });
+      }
+
+      await tx.transportRequest.updateMany({
+        where: {
+          trip_id: tripId,
+          status: request_status.ACCEPTED,
+          type: request_type.PACKAGE,
+        },
+        data: {
+          status: request_status.COMPLETED,
+        },
+      });
+
+      // Gửi thông báo đến hành khách
+      const allFinished = await tx.transportRequest.findMany({
+        where: { trip_id: tripId, status: request_status.COMPLETED },
+        select: { user_id: true },
+      });
+
+      for (const req of allFinished) {
+        await NotificationService.createNotification({
+          userId: req.user_id,
+          type: 'PROGRESS_UPDATE',
+          content: `Tài xế đã xác nhận trả toàn bộ khách và giao toàn bộ hàng an toàn tại điểm đến chuyến ${trip.code}. Cảm ơn bạn đã đồng hành!`,
+          refType: 'TRIP',
+          refId: tripId,
+        });
+      }
+
+      return { message: 'Đã xác nhận trả toàn bộ khách và giao toàn bộ kiện hàng thành công.' };
+    });
+  }
+
+  /**
+   * Tài xế báo cáo sự cố từng yêu cầu (ví dụ: Khách vắng mặt / không nghe máy lúc xuất phát)
+   * Yêu cầu chuyển FAILED, hoàn trả sức chứa xe, ghi IncidentReport cho Admin và tự động tính lại chi phí nhiên liệu.
+   */
+  static async reportIssue(driverId: bigint, requestId: bigint, rawInput: z.infer<typeof reportIssueSchema>) {
+    const input = reportIssueSchema.parse(rawInput);
+
+    const request = await prisma.transportRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        trip: true,
+        package_items: true,
+      },
+    });
+
+    if (!request) {
+      throw new AppError(404, 'REQUEST_NOT_FOUND', 'Không tìm thấy yêu cầu.');
+    }
+
+    if (request.trip.driver_id !== driverId) {
+      throw new AppError(403, 'FORBIDDEN', 'Bạn không có quyền thao tác trên yêu cầu này.');
+    }
+
+    if (request.status !== request_status.ACCEPTED && request.status !== request_status.PENDING) {
+      throw new AppError(400, 'INVALID_REQUEST_STATUS', 'Chỉ có thể báo cáo sự cố cho yêu cầu đang chờ hoặc đã chấp nhận.');
+    }
+
+    // Các lý do do lỗi phía khách hàng thì bị tính vào tỷ lệ hủy (CS-02)
+    const countsTowardCancelRate =
+      input.reason_code === fail_reason_code.ABSENT ||
+      input.reason_code === fail_reason_code.UNREACHABLE ||
+      input.reason_code === fail_reason_code.WRONG_INFO;
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Chuyển trạng thái yêu cầu sang FAILED
+      const updatedReq = await tx.transportRequest.update({
+        where: { id: requestId },
+        data: {
+          status: request_status.FAILED,
+          fail_reason_code: input.reason_code,
+          cancel_reason: input.note || `Tài xế báo sự cố: ${input.reason_code}`,
+          counts_toward_cancel_rate: countsTowardCancelRate,
+        },
+      });
+
+      // 2. Hoàn trả sức chứa xe nếu yêu cầu đã ACCEPTED
+      if (request.status === request_status.ACCEPTED) {
+        if (request.type === request_type.RIDE) {
+          const passengers = request.passenger_count || 1;
+          await tx.trip.update({
+            where: { id: request.trip_id },
+            data: {
+              seats_reserved: { decrement: passengers },
+            },
+          });
+        } else if (request.type === request_type.PACKAGE && request.package_items.length > 0) {
+          const totalArea = request.package_items.reduce((s, p) => s + p.area_m2, 0);
+          const totalWeight = request.package_items.reduce((s, p) => s + p.weight_kg, 0);
+          await tx.trip.update({
+            where: { id: request.trip_id },
+            data: {
+              cargo_area_reserved_m2: { decrement: totalArea },
+              cargo_weight_reserved_kg: { decrement: totalWeight },
+            },
+          });
+        }
+      }
+
+      // 3. Tự động tính lại chi phí nhiên liệu/sạc cho các khách còn lại trên xe
+      await RequestService.recalculateFuelCost(tx, request.trip_id);
+
+      // 4. Tạo IncidentReport cho Quản trị viên theo dõi (AD-02)
+      const reasonLabels: Record<fail_reason_code, string> = {
+        ABSENT: 'Hành khách vắng mặt tại điểm đón',
+        UNREACHABLE: 'Không thể liên lạc qua điện thoại',
+        WRONG_INFO: 'Thông tin hành khách/kiện hàng sai lệch',
+        OTHER: 'Sự cố khác',
+      };
+
+      await tx.incidentReport.create({
+        data: {
+          reporter_id: driverId,
+          trip_id: request.trip_id,
+          request_id: requestId,
+          title: `Tài xế báo sự cố (${request.code}): ${reasonLabels[input.reason_code]}`,
+          description: `Tài xế đánh dấu yêu cầu ${request.code} thất bại do: ${reasonLabels[input.reason_code]}. ${input.note ? `Ghi chú: ${input.note}` : ''}. Chi phí nhiên liệu chia sẻ trên chuyến xe đã được tự động tính toán lại.`,
+          status: incident_status.NOT_RECEIVED,
+        },
+      });
+
+      // 5. Gửi thông báo đến hành khách vi phạm
+      await NotificationService.createNotification({
+        userId: request.user_id,
+        type: 'REQUEST_FAILED',
+        content: `Yêu cầu ${request.code} trên chuyến xe ${request.trip.code} đã bị đánh dấu thất bại do: ${reasonLabels[input.reason_code]}.${countsTowardCancelRate ? ' Vi phạm này sẽ được tính vào tỷ lệ hủy chuyến của bạn.' : ''}`,
+        refType: 'TRIP',
+        refId: request.trip_id,
+      });
+
+      return {
+        message: 'Đã báo cáo sự cố thành công. Chi phí nhiên liệu của chuyến xe đã được tự động tính toán lại.',
+        request: {
+          ...updatedReq,
+          id: updatedReq.id.toString(),
+          trip_id: updatedReq.trip_id.toString(),
+          user_id: updatedReq.user_id.toString(),
+        },
+      };
+    });
   }
 
   /**

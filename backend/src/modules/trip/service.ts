@@ -1,11 +1,11 @@
-import { trip_status, vehicle_status, actor_type, request_status } from '@prisma/client';
+import { trip_status, vehicle_status, actor_type, request_status, incident_status, fail_reason_code } from '@prisma/client';
 import axios from 'axios';
 import { prisma } from '../../utils/prisma.js';
 import { AppError } from '../../middlewares/errorHandler.js';
 import { mapAdapter } from '../../adapters/map/ors.js';
 import { GeminiAdapter } from '../../adapters/ai/gemini.js';
 import { calculateHaversineDistanceKm } from '../../utils/distance.js';
-import { createTripSchema, cancelTripSchema, searchTripsSchema } from './schema.js';
+import { createTripSchema, cancelTripSchema, cancelTripInProgressSchema, searchTripsSchema } from './schema.js';
 import { z } from 'zod';
 
 export class TripService {
@@ -297,6 +297,106 @@ export class TripService {
       }
 
       return updatedTrip;
+    });
+  }
+
+  /**
+   * Hủy chuyến xe khẩn cấp khi đang di chuyển do gặp sự cố (IN_PROGRESS -> CANCELLED)
+   * Tự động tạo IncidentReport cho Admin và gửi thông báo khẩn cho toàn bộ hành khách.
+   */
+  static async cancelTripInProgress(
+    driverId: bigint,
+    tripId: bigint,
+    input: z.infer<typeof cancelTripInProgressSchema>
+  ) {
+    const trip = await prisma.trip.findFirst({
+      where: {
+        id: tripId,
+        driver_id: driverId,
+      },
+      include: {
+        vehicle: true,
+      },
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'TRIP_NOT_FOUND', 'Không tìm thấy chuyến xe hoặc bạn không có quyền thao tác.');
+    }
+
+    if (trip.status !== trip_status.IN_PROGRESS) {
+      throw new AppError(
+        400,
+        'INVALID_TRIP_STATUS',
+        'Chức năng này chỉ áp dụng cho chuyến xe đang trong quá trình di chuyển (IN_PROGRESS).'
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Cập nhật chuyến xe sang CANCELLED
+      const updatedTrip = await tx.trip.update({
+        where: { id: tripId },
+        data: {
+          status: trip_status.CANCELLED,
+          cancel_reason: `Sự cố khi đang di chuyển: ${input.reason}`,
+        },
+      });
+
+      // 2. Tìm tất cả yêu cầu đang phục vụ trên xe (ACCEPTED hoặc PENDING)
+      const activeRequests = await tx.transportRequest.findMany({
+        where: {
+          trip_id: tripId,
+          status: { in: [request_status.ACCEPTED, request_status.PENDING] },
+        },
+        select: { id: true, user_id: true, code: true },
+      });
+
+      // 3. Chuyển các yêu cầu sang CANCELLED do sự cố tài xế (không tính lỗi cho khách)
+      if (activeRequests.length > 0) {
+        await tx.transportRequest.updateMany({
+          where: {
+            trip_id: tripId,
+            status: { in: [request_status.ACCEPTED, request_status.PENDING] },
+          },
+          data: {
+            status: request_status.CANCELLED,
+            cancelled_by: actor_type.DRIVER,
+            cancel_reason: `Chuyến xe bị hủy giữa đường do tài xế gặp sự cố: ${input.reason}`,
+            fail_reason_code: fail_reason_code.OTHER,
+            counts_toward_cancel_rate: false,
+          },
+        });
+
+        // Gửi thông báo khẩn cấp đến từng hành khách
+        for (const req of activeRequests) {
+          await tx.notification.create({
+            data: {
+              user_id: req.user_id,
+              type: 'TRIP_EMERGENCY_CANCELLED',
+              content: `Khẩn cấp: Chuyến xe ${trip.code} đã bị tài xế hủy giữa đường do gặp sự cố: "${input.reason}". Vui lòng tìm kiếm phương án di chuyển thay thế hoặc liên hệ hỗ trợ.`,
+              ref_type: 'TRIP',
+              ref_id: tripId,
+            },
+          });
+        }
+      }
+
+      // 4. Tự động ghi nhận IncidentReport cho Quản trị viên xử lý (AD-02)
+      await tx.incidentReport.create({
+        data: {
+          reporter_id: driverId,
+          trip_id: tripId,
+          title: `Tài xế hủy chuyến xe ${trip.code} giữa đường do sự cố`,
+          description: `Chuyến xe đang di chuyển (IN_PROGRESS) bị tài xế hủy khẩn cấp. Lý do: ${input.reason}. Xe: ${trip.vehicle?.brand_model || ''} (${trip.vehicle?.plate_number || ''}). Số yêu cầu bị ảnh hưởng: ${activeRequests.length}.`,
+          status: incident_status.NOT_RECEIVED,
+        },
+      });
+
+      return {
+        ...updatedTrip,
+        id: updatedTrip.id.toString(),
+        driver_id: updatedTrip.driver_id.toString(),
+        vehicle_id: updatedTrip.vehicle_id.toString(),
+      };
     });
   }
 

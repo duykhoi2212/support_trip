@@ -68,6 +68,24 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-16 (Giai đoạn 6 - CHẶNG 4: NÂNG CẤP ĐIỀU HÀNH CHUYẾN XE, XÁC NHẬN ĐÓN TRƯỚC KHỞI HÀNH, HÀNH ĐỘNG HÀNG LOẠT, BÁO SỰ CỐ KHÁCH VẮNG MẶT & HỦY KHẨN CẤP)**:
+  - **Tách Cổng Quản Trị Viên Riêng Biệt (`/admin/login`)**:
+    - Xây dựng trang đăng nhập Admin độc lập với phong cách quản trị cao cấp, mặc định role `ADMIN` và gợi ý thông tin mẫu 1 chạm (`admin@example.com` / `Password@123`).
+    - Tách biệt rõ ràng với luồng đăng nhập người dùng thông thường (`/login`) và liên kết bảo mật ở chân trang.
+  - **Đảo Ngược Quy Trình Xác Nhận Đón Trước Khởi Hành (Pre-departure Pickup)**:
+    - Tài xế xác nhận đón khách (`PICKED_UP`) hoặc nhận hàng vào cốp (`PICKED_UP`) trực tiếp tại điểm tập kết trước khi khởi hành.
+    - Nút **"Bắt đầu hành trình"** chỉ được mở khóa khi **toàn bộ** yêu cầu đã duyệt (`ACCEPTED`) đã được xác nhận đón lên xe hoặc đã báo sự cố loại khỏi chuyến (`FAILED`). Chặn mọi trường hợp tài xế xuất phát khi còn hành khách chưa rõ trạng thái.
+  - **Nút Thao Tác Hàng Loạt 1 Chạm (Batch Actions)**:
+    - `handlePickupAll`: Nút *"Đã đón đủ tất cả khách & kiện hàng lên xe"* xác nhận đón đồng loạt toàn bộ hành khách và hàng hóa khi xe chuẩn bị rời bến.
+    - `handleDropoffAll`: Nút *"Đã trả đủ tất cả khách & kiện hàng"* xác nhận trả toàn bộ khách và giao toàn bộ hàng an toàn khi xe cập bến đến.
+  - **Báo Sự Cố Từng Yêu Cầu & Tự Động Tính Lại Chi Phí Nhiên Liệu/Sạc**:
+    - Bổ sung nút **"Báo sự cố"** trên từng thẻ yêu cầu ở tab Khách & Hàng trên xe.
+    - Xử lý các trường hợp: Khách vắng mặt (`ABSENT`), Không liên lạc được (`UNREACHABLE`), Sai lệch thông tin (`WRONG_INFO`) -> Tính lỗi phạt tỷ lệ hủy cho khách; hoặc Sự cố khác (`OTHER`) -> Miễn phạt.
+    - Yêu cầu chuyển `FAILED`, tự động hoàn trả ghế ngồi/diện tích/tải trọng, tạo `IncidentReport` cho Admin và **tính toán lại ngay lập tức** chi phí nhiên liệu chia sẻ (`shared_fuel_cost`) cho các hành khách còn lại để bảo vệ tài xế không bị thâm hụt tiền xăng.
+  - **Hủy Chuyến Khẩn Cấp Khi Đang Di Chuyển (`cancel-in-progress`)**:
+    - Backend: `POST /api/trips/:id/cancel-in-progress` (bắt buộc lý do sự cố $\ge 10$ ký tự).
+    - Cập nhật chuyến xe sang `CANCELLED`, các yêu cầu đang phục vụ sang `CANCELLED` (do tài xế gặp sự cố, không phạt khách), tự động tạo hồ sơ `IncidentReport` và gửi thông báo khẩn cấp tới tất cả hành khách.
+  - **Kiểm thử**: Mở rộng `backend/tests/request-operation.test.ts` (13 tests) kiểm thử toàn diện quy trình đón trước khởi hành, báo sự cố và hủy khẩn cấp. Toàn bộ **79/79 Vitest tests passed 100%**. Frontend & Backend build sạch **0 lỗi**.
 - **2026-11-16 (Giai đoạn 6 - CHẶNG 3: HỆ THỐNG QUẢN TRỊ VIÊN ADMIN DASHBOARD - AD-01, AD-02, AD-03)**:
   - **AD-01: Quản lý & Mở khóa tài khoản**:
     - Backend: Xây dựng `AdminService.getUsers` và `AdminService.unlockUser` với bộ lọc vai trò, trạng thái vi phạm, từ khóa.

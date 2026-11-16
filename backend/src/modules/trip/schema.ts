@@ -27,6 +27,14 @@ export const cancelTripSchema = z.object({
     .max(255, 'Lý do hủy không được vượt quá 255 ký tự'),
 });
 
+export const cancelTripInProgressSchema = z.object({
+  reason: z
+    .string({ required_error: 'Vui lòng nhập lý do gặp sự cố hủy chuyến' })
+    .trim()
+    .min(10, 'Lý do sự cố phải có ít nhất 10 ký tự mô tả chi tiết')
+    .max(500, 'Lý do không được vượt quá 500 ký tự'),
+});
+
 export const searchTripsSchema = z.object({
   origin_name: z.string().optional(),
   dest_name: z.string().optional(),

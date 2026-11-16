@@ -20,9 +20,12 @@ router.get('/trip/:tripId', requireRole([user_role.DRIVER]), RequestController.g
 router.post('/:id/accept', requireRole([user_role.DRIVER]), RequestController.accept);
 router.post('/:id/reject', requireRole([user_role.DRIVER]), RequestController.reject);
 router.patch('/:id/progress', requireRole([user_role.DRIVER]), RequestController.updateProgress);
+router.post('/:id/report-issue', requireRole([user_role.DRIVER]), RequestController.reportIssue);
 
 // 3. Điều hành chuyến xe (Driver)
 router.post('/trip/:tripId/start', requireRole([user_role.DRIVER]), RequestController.startTrip);
+router.post('/trip/:tripId/pickup-all', requireRole([user_role.DRIVER]), RequestController.pickupAll);
+router.post('/trip/:tripId/dropoff-all', requireRole([user_role.DRIVER]), RequestController.dropoffAll);
 router.post('/trip/:tripId/complete', requireRole([user_role.DRIVER]), RequestController.completeTrip);
 
 export default router;

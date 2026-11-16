@@ -7,6 +7,7 @@ import {
   rejectRequestSchema,
   cancelRequestSchema,
   updateProgressSchema,
+  reportIssueSchema,
 } from './schema.js';
 
 export class RequestController {
@@ -207,6 +208,61 @@ export class RequestController {
         success: true,
         data: result,
         message: 'Chuyến xe đã hoàn thành toàn bộ hành trình.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Đón đủ tất cả khách và nhận đủ kiện hàng lên xe (Batch Pickup)
+   */
+  static async pickupAll(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const driverId = req.user!.id;
+      const tripId = BigInt(req.params.tripId);
+      const result = await RequestService.pickupAll(driverId, tripId);
+      res.json({
+        success: true,
+        data: result,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Trả đủ tất cả khách và giao đủ kiện hàng (Batch Dropoff)
+   */
+  static async dropoffAll(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const driverId = req.user!.id;
+      const tripId = BigInt(req.params.tripId);
+      const result = await RequestService.dropoffAll(driverId, tripId);
+      res.json({
+        success: true,
+        data: result,
+        message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Tài xế báo cáo sự cố từng yêu cầu (Khách vắng mặt, không liên lạc được...)
+   */
+  static async reportIssue(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const driverId = req.user!.id;
+      const requestId = BigInt(req.params.id);
+      const input = reportIssueSchema.parse(req.body);
+      const result = await RequestService.reportIssue(driverId, requestId, input);
+      res.json({
+        success: true,
+        data: result,
+        message: result.message,
       });
     } catch (error) {
       next(error);

@@ -134,6 +134,9 @@ describe('Kiểm thử Module Yêu cầu vận chuyển & Điều hành chuyến
 
   afterAll(async () => {
     // Dọn dẹp sau kiểm thử
+    await prisma.incidentReport.deleteMany({
+      where: { reporter_id: driverId },
+    });
     await prisma.notification.deleteMany({
       where: {
         user: { email: { in: [driverEmail, user1Email, user2Email] } },
@@ -286,7 +289,19 @@ describe('Kiểm thử Module Yêu cầu vận chuyển & Điều hành chuyến
     expect(trip?.cargo_area_reserved_m2).toBe(0);
   });
 
-  it('10. DR-03: Tài xế bắt đầu chuyến xe (IN_PROGRESS)', async () => {
+  it('10. DR-03: Kiểm tra cơ chế chặn Bắt đầu hành trình nếu chưa đón đủ khách / nhận đủ hàng', async () => {
+    // Khi còn yêu cầu ACCEPTED nhưng chưa PICKED_UP -> startTrip phải báo lỗi
+    await expect(RequestService.startTrip(driverId, tripId)).rejects.toThrow(
+      'Vui lòng xác nhận đón hoặc báo sự cố'
+    );
+
+    // Xác nhận đón khách trước khi khởi hành (PICKED_UP)
+    const pickedUp = await RequestService.updateProgress(driverId, rideRequestId, {
+      ride_progress: ride_progress.PICKED_UP,
+    });
+    expect(pickedUp.ride_progress).toBe(ride_progress.PICKED_UP);
+
+    // Bây giờ bắt đầu hành trình thành công và tự động tính chia sẻ nhiên liệu
     const started = await RequestService.startTrip(driverId, tripId);
     expect(started.status).toBe(trip_status.IN_PROGRESS);
 
@@ -298,23 +313,155 @@ describe('Kiểm thử Module Yêu cầu vận chuyển & Điều hành chuyến
     ).rejects.toThrow('Chuyến xe đã khởi hành');
   });
 
-  it('11. DR-03: Tài xế cập nhật tiến trình đón/trả khách (PICKED_UP -> DROPPED_OFF -> COMPLETED)', async () => {
-    // Đón khách
-    const pickedUp = await RequestService.updateProgress(driverId, rideRequestId, {
-      ride_progress: ride_progress.PICKED_UP,
-    });
-    expect(pickedUp.ride_progress).toBe(ride_progress.PICKED_UP);
-
+  it('11. DR-03: Thao tác trả khách và hoàn thành chuyến xe', async () => {
     // Trả khách -> Yêu cầu tự động hoàn thành
     const droppedOff = await RequestService.updateProgress(driverId, rideRequestId, {
       ride_progress: ride_progress.DROPPED_OFF,
     });
     expect(droppedOff.status).toBe(request_status.COMPLETED);
-  });
 
-  it('12. DR-03: Tài xế kết thúc chuyến xe (COMPLETED)', async () => {
+    // Hoàn thành chuyến xe
     const completed = await RequestService.completeTrip(driverId, tripId);
     expect(completed.status).toBe(trip_status.COMPLETED);
+  });
+
+  it('12. DR-03 & CS-02: Báo sự cố khách vắng mặt (reportIssue) & Tự động tính lại chi phí nhiên liệu chia sẻ', async () => {
+    // Dọn dẹp chuyến cũ nếu có
+    await prisma.incidentReport.deleteMany({
+      where: { reporter_id: driverId },
+    });
+    await prisma.packageItem.deleteMany({
+      where: { transport_request: { trip: { code: 'TRIP-ISSUE-TEST' } } },
+    });
+    await prisma.transportRequest.deleteMany({
+      where: { trip: { code: 'TRIP-ISSUE-TEST' } },
+    });
+    await prisma.trip.deleteMany({ where: { code: 'TRIP-ISSUE-TEST' } });
+
+    // Tạo 1 chuyến xe mới với chi phí nhiên liệu ước tính 120.000 đ
+    const newTrip = await prisma.trip.create({
+      data: {
+        code: 'TRIP-ISSUE-TEST',
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        origin_name: 'Test Stage 4 - Origin',
+        origin_lat: 16.0544,
+        origin_lng: 108.2022,
+        dest_name: 'Test Stage 4 - Dest',
+        dest_lat: 16.0744,
+        dest_lng: 108.2222,
+        departure_time: new Date(Date.now() + 3600000),
+        eta: new Date(Date.now() + 7200000),
+        seats_total: 4,
+        cargo_area_total_m2: 2.0,
+        cargo_weight_total_kg: 100,
+        estimated_fuel_cost: 120000,
+        fuel_price: 24000,
+        status: trip_status.OPEN,
+      },
+    });
+
+    // Tạo 2 yêu cầu: Req A (Đi nhờ 2 người = 2 units), Req B (Gửi hàng = 1 unit)
+    const reqA = await prisma.transportRequest.create({
+      data: {
+        code: 'REQ-A',
+        trip_id: newTrip.id,
+        user_id: user1Id,
+        type: 'RIDE',
+        pickup_name: 'Đón A',
+        pickup_lat: 16.0544,
+        pickup_lng: 108.2022,
+        dropoff_name: 'Trả A',
+        dropoff_lat: 16.0744,
+        dropoff_lng: 108.2222,
+        passenger_count: 2,
+        status: request_status.ACCEPTED,
+        ride_progress: ride_progress.PICKED_UP,
+      },
+    });
+
+    const reqB = await prisma.transportRequest.create({
+      data: {
+        code: 'REQ-B',
+        trip_id: newTrip.id,
+        user_id: user2Id,
+        type: 'PACKAGE',
+        pickup_name: 'Đón B',
+        pickup_lat: 16.0544,
+        pickup_lng: 108.2022,
+        dropoff_name: 'Trả B',
+        dropoff_lat: 16.0744,
+        dropoff_lng: 108.2222,
+        status: request_status.ACCEPTED,
+        package_items: {
+          create: {
+            description: 'Thùng hoa quả',
+            weight_kg: 10,
+            area_m2: 0.5,
+            recipient_name: 'Người nhận B',
+            recipient_phone: '0900000002',
+            photo_url: 'https://example.com/fruit.jpg',
+            status: package_status.AWAITING_PICKUP,
+          },
+        },
+      },
+    });
+
+    // Cập nhật tải trọng cho chuyến xe
+    await prisma.trip.update({
+      where: { id: newTrip.id },
+      data: {
+        seats_reserved: 2,
+        cargo_weight_reserved_kg: 10,
+        cargo_area_reserved_m2: 0.5,
+      },
+    });
+
+    // Báo sự cố khách B vắng mặt (No-show: ABSENT)
+    const reportRes = await RequestService.reportIssue(driverId, reqB.id, {
+      reason_code: 'ABSENT',
+      note: 'Khách không có mặt tại điểm hẹn sau 15 phút',
+    });
+    expect(reportRes.message).toBeDefined();
+    expect(reportRes.request.status).toBe(request_status.FAILED);
+
+    // Kiểm tra Req B chuyển thành FAILED và tính tỷ lệ vi phạm
+    const updatedReqB = await prisma.transportRequest.findUnique({ where: { id: reqB.id } });
+    expect(updatedReqB?.status).toBe(request_status.FAILED);
+    expect(updatedReqB?.fail_reason_code).toBe('ABSENT');
+    expect(updatedReqB?.counts_toward_cancel_rate).toBe(true);
+
+    // Kiểm tra sức chứa xe đã được trả lại
+    const updatedTrip = await prisma.trip.findUnique({ where: { id: newTrip.id } });
+    expect(updatedTrip?.cargo_weight_reserved_kg).toBe(0);
+
+    // Kiểm tra Incident Report đã được tạo cho Admin
+    const incident = await prisma.incidentReport.findFirst({
+      where: { request_id: reqB.id },
+    });
+    expect(incident).toBeDefined();
+    expect(incident?.title).toContain('Tài xế báo sự cố');
+
+    // Sau khi loại Req B (1 unit), Req A (2 units) là người duy nhất -> gánh 120.000 đ
+    const updatedReqA = await prisma.transportRequest.findUnique({ where: { id: reqA.id } });
+    expect(updatedReqA?.shared_fuel_cost).toBe(120000);
+
+    // Bắt đầu chuyến xe newTrip
+    await RequestService.startTrip(driverId, newTrip.id);
+
+    // Test hủy chuyến khẩn cấp khi đang di chuyển (cancelTripInProgress)
+    const emergencyRes = await TripService.cancelTripInProgress(
+      driverId,
+      newTrip.id,
+      'Xe bị hỏng hộp số không thể tiếp tục di chuyển trên đường'
+    );
+    expect(emergencyRes.status).toBe(trip_status.CANCELLED);
+
+    // Kiểm tra Req A bị CANCELLED theo chuyến xe bị hủy khẩn cấp (không phạt khách)
+    const finalReqA = await prisma.transportRequest.findUnique({ where: { id: reqA.id } });
+    expect(finalReqA?.status).toBe(request_status.CANCELLED);
+    expect(finalReqA?.cancelled_by).toBe('DRIVER');
+    expect(finalReqA?.counts_toward_cancel_rate).toBe(false);
   });
 
   it('13. Notifications: Kiểm tra thông báo được tạo tự động và đánh dấu đã đọc', async () => {
