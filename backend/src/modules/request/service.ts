@@ -97,12 +97,12 @@ export class RequestService {
         trip_id: tripId,
         user_id: userId,
         type: request_type.RIDE,
-        pickup_name: input.pickup_name,
-        pickup_lat: input.pickup_lat,
-        pickup_lng: input.pickup_lng,
-        dropoff_name: input.dropoff_name,
-        dropoff_lat: input.dropoff_lat,
-        dropoff_lng: input.dropoff_lng,
+        pickup_name: input.pickup_name || trip.origin_name,
+        pickup_lat: input.pickup_lat ?? trip.origin_lat,
+        pickup_lng: input.pickup_lng ?? trip.origin_lng,
+        dropoff_name: input.dropoff_name || trip.dest_name,
+        dropoff_lat: input.dropoff_lat ?? trip.dest_lat,
+        dropoff_lng: input.dropoff_lng ?? trip.dest_lng,
         passenger_count: input.passenger_count,
         ride_progress: ride_progress.NOT_PICKED_UP,
         status: request_status.PENDING,
@@ -201,12 +201,12 @@ export class RequestService {
           trip_id: tripId,
           user_id: userId,
           type: request_type.PACKAGE,
-          pickup_name: input.pickup_name,
-          pickup_lat: input.pickup_lat,
-          pickup_lng: input.pickup_lng,
-          dropoff_name: input.dropoff_name,
-          dropoff_lat: input.dropoff_lat,
-          dropoff_lng: input.dropoff_lng,
+          pickup_name: input.pickup_name || trip.origin_name,
+          pickup_lat: input.pickup_lat ?? trip.origin_lat,
+          pickup_lng: input.pickup_lng ?? trip.origin_lng,
+          dropoff_name: input.dropoff_name || trip.dest_name,
+          dropoff_lat: input.dropoff_lat ?? trip.dest_lat,
+          dropoff_lng: input.dropoff_lng ?? trip.dest_lng,
           status: request_status.PENDING,
         },
         include: {
@@ -617,42 +617,55 @@ export class RequestService {
       where: { trip_id: tripId, status: request_status.ACCEPTED },
     });
 
-    const userCount = acceptedRequests.length;
-    let sharedFuelCostPerUser = 0;
+    // Tính tổng số suất tham gia (Đi nhờ: passenger_count người, Gửi hàng: 1 kiện)
+    const totalParticipantUnits = acceptedRequests.reduce((sum, req) => {
+      const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
+      return sum + units;
+    }, 0);
 
-    if (userCount > 0 && trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0) {
-      sharedFuelCostPerUser = Math.round(trip.estimated_fuel_cost / userCount);
+    let costPerUnit = 0;
 
-      // Cập nhật chi phí nhiên liệu chia sẻ vào từng yêu cầu
-      await prisma.transportRequest.updateMany({
-        where: { trip_id: tripId, status: request_status.ACCEPTED },
-        data: { shared_fuel_cost: sharedFuelCostPerUser },
-      });
+    if (totalParticipantUnits > 0 && trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0) {
+      costPerUnit = Math.round(trip.estimated_fuel_cost / totalParticipantUnits);
+
+      // Cập nhật chi phí nhiên liệu chia sẻ vào từng yêu cầu:
+      // Đi nhờ n người = costPerUnit * n (ví dụ đặt 2 người thì tính x2)
+      // Gửi 1 kiện hàng = costPerUnit * 1
+      for (const req of acceptedRequests) {
+        const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
+        const reqFuelCost = costPerUnit * units;
+        await prisma.transportRequest.update({
+          where: { id: req.id },
+          data: { shared_fuel_cost: reqFuelCost },
+        });
+      }
     }
 
     const isElectric = trip.vehicle?.fuel_type === 'ELECTRIC';
     const fuelLabel = isElectric ? 'sạc điện' : 'nhiên liệu';
 
     for (const req of acceptedRequests) {
+      const units = req.type === request_type.RIDE ? (req.passenger_count || 1) : 1;
+      const reqFuelCost = costPerUnit * units;
       const costMsg =
-        sharedFuelCostPerUser > 0
-          ? ` Chi phí ${fuelLabel} chia sẻ của bạn là: ${sharedFuelCostPerUser.toLocaleString('vi-VN')} đ (tự nguyện gửi tài xế khi đến nơi).`
+        reqFuelCost > 0
+          ? ` Chi phí ${fuelLabel} chia sẻ của bạn (${units} suất tham gia) là: ${reqFuelCost.toLocaleString('vi-VN')} đ (tự nguyện gửi tài xế khi đến nơi).`
           : '';
 
       await NotificationService.createNotification({
         userId: req.user_id,
         type: 'TRIP_STARTED',
-        content: `Chuyến xe ${trip.code} đã chính thức khởi hành!${costMsg} Hãy chú ý điện thoại để tài xế đón bạn.`,
+        content: `Chuyến xe ${trip.code} đã chính thức khởi hành!${costMsg} Hãy chuẩn bị để lên xe.`,
         refType: 'TRIP',
         refId: trip.id,
       });
     }
 
-    if (userCount > 0 && sharedFuelCostPerUser > 0) {
+    if (totalParticipantUnits > 0 && costPerUnit > 0) {
       await NotificationService.createNotification({
         userId: driverId,
         type: 'TRIP_STARTED',
-        content: `Chuyến xe ${trip.code} đã bắt đầu! Đã chốt chi phí ${fuelLabel} chia sẻ: ${sharedFuelCostPerUser.toLocaleString('vi-VN')} đ/người (Tổng ${userCount} người tham gia).`,
+        content: `Chuyến xe ${trip.code} đã bắt đầu! Đã chốt chi phí ${fuelLabel} chia sẻ: ${costPerUnit.toLocaleString('vi-VN')} đ/người (Tổng ${totalParticipantUnits} người/suất tham gia từ ${acceptedRequests.length} yêu cầu).`,
         refType: 'TRIP',
         refId: trip.id,
       });

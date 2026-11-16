@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Car,
@@ -10,7 +10,6 @@ import {
   AlertCircle,
   ChevronLeft,
   Navigation,
-  Search,
   ShieldCheck,
   User as UserIcon,
   ArrowRight,
@@ -22,7 +21,6 @@ import { requestService } from '../../services/requestService';
 import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { RouteMap } from '../../components/map/RouteMap';
-import { getDistanceKm } from '../../utils/geo';
 
 export const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -35,24 +33,6 @@ export const TripDetails: React.FC = () => {
 
   // Chế độ đặt: 'RIDE' (Đi nhờ xe) hoặc 'PACKAGE' (Gửi hàng)
   const [requestType, setRequestType] = useState<'RIDE' | 'PACKAGE'>('RIDE');
-
-  // Điểm đón & trả khách/hàng
-  const [pickupName, setPickupName] = useState<string>('');
-  const [pickupLat, setPickupLat] = useState<number>(0);
-  const [pickupLng, setPickupLng] = useState<number>(0);
-
-  const [dropoffName, setDropoffName] = useState<string>('');
-  const [dropoffLat, setDropoffLat] = useState<number>(0);
-  const [dropoffLng, setDropoffLng] = useState<number>(0);
-
-  // Autocomplete suggestions
-  const [pickupSuggestions, setPickupSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
-  const [dropoffSuggestions, setDropoffSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
-  const [searchingPickup, setSearchingPickup] = useState(false);
-  const [searchingDropoff, setSearchingDropoff] = useState(false);
-
-  const pickupDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const dropoffDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Form states cho Đi nhờ xe (RIDE)
   const [passengerCount, setPassengerCount] = useState<number>(1);
@@ -81,15 +61,6 @@ export const TripDetails: React.FC = () => {
         setLoading(true);
         const data = await tripService.getTripById(id);
         setTrip(data);
-
-        // Mặc định điền điểm đón/trả trùng với điểm xuất phát và kết thúc của chuyến
-        setPickupName(data.origin_name);
-        setPickupLat(data.origin_lat);
-        setPickupLng(data.origin_lng);
-
-        setDropoffName(data.dest_name);
-        setDropoffLat(data.dest_lat);
-        setDropoffLng(data.dest_lng);
       } catch (err: any) {
         setError(err.response?.data?.error?.message || err.message || 'Không thể tải thông tin chuyến xe.');
       } finally {
@@ -99,79 +70,6 @@ export const TripDetails: React.FC = () => {
 
     fetchTrip();
   }, [id]);
-
-  // Xử lý tìm kiếm gợi ý điểm đón
-  const handlePickupChange = (val: string) => {
-    setPickupName(val);
-    if (pickupDebounceRef.current) clearTimeout(pickupDebounceRef.current);
-    if (!val.trim() || val.trim().length < 2) {
-      setPickupSuggestions([]);
-      return;
-    }
-
-    pickupDebounceRef.current = setTimeout(async () => {
-      try {
-        setSearchingPickup(true);
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
-        const data = await res.json();
-        const items = (data.features || []).map((f: any) => {
-          const p = f.properties || {};
-          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
-          return {
-            name: labelParts.join(', ') || p.name || val,
-            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
-            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
-          };
-        });
-        setPickupSuggestions(items);
-      } catch (err) {
-        console.warn('Lỗi tìm kiếm:', err);
-      } finally {
-        setSearchingPickup(false);
-      }
-    }, 350);
-  };
-
-  // Xử lý tìm kiếm gợi ý điểm trả
-  const handleDropoffChange = (val: string) => {
-    setDropoffName(val);
-    if (dropoffDebounceRef.current) clearTimeout(dropoffDebounceRef.current);
-    if (!val.trim() || val.trim().length < 2) {
-      setDropoffSuggestions([]);
-      return;
-    }
-
-    dropoffDebounceRef.current = setTimeout(async () => {
-      try {
-        setSearchingDropoff(true);
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
-        const data = await res.json();
-        const items = (data.features || []).map((f: any) => {
-          const p = f.properties || {};
-          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
-          return {
-            name: labelParts.join(', ') || p.name || val,
-            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
-            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
-          };
-        });
-        setDropoffSuggestions(items);
-      } catch (err) {
-        console.warn('Lỗi tìm kiếm:', err);
-      } finally {
-        setSearchingDropoff(false);
-      }
-    }, 350);
-  };
-
-  // Khoảng cách trắc địa từ điểm đón đến Điểm xuất phát của chuyến, và điểm trả đến Điểm đến của chuyến (≤ 15km đề xuất thuận tiện)
-  const pickupDistanceKm = trip && pickupLat && pickupLng
-    ? Math.round(getDistanceKm(pickupLat, pickupLng, trip.origin_lat, trip.origin_lng) * 10) / 10
-    : 0;
-
-  const dropoffDistanceKm = trip && dropoffLat && dropoffLng
-    ? Math.round(getDistanceKm(dropoffLat, dropoffLng, trip.dest_lat, trip.dest_lng) * 10) / 10
-    : 0;
 
   const routeCoords: Array<[number, number]> = trip?.route_polyline
     ? JSON.parse(trip.route_polyline)
@@ -200,25 +98,26 @@ export const TripDetails: React.FC = () => {
 
     if (!trip) return;
 
-    if (!pickupName.trim() || !dropoffName.trim()) {
-      setFormError('Vui lòng nhập đầy đủ điểm đón và điểm trả.');
-      return;
-    }
-
     setSubmitting(true);
     try {
       if (requestType === 'RIDE') {
         await requestService.createRideRequest({
           trip_id: trip.id,
-          pickup_name: pickupName.trim(),
-          pickup_lat: pickupLat,
-          pickup_lng: pickupLng,
-          dropoff_name: dropoffName.trim(),
-          dropoff_lat: dropoffLat,
-          dropoff_lng: dropoffLng,
+          pickup_name: trip.origin_name,
+          pickup_lat: trip.origin_lat,
+          pickup_lng: trip.origin_lng,
+          dropoff_name: trip.dest_name,
+          dropoff_lat: trip.dest_lat,
+          dropoff_lng: trip.dest_lng,
           passenger_count: passengerCount,
         });
       } else {
+        if (!recipientName.trim() || !recipientPhone.trim() || !packageDesc.trim()) {
+          setFormError('Vui lòng nhập đầy đủ thông tin người nhận và mô tả kiện hàng.');
+          setSubmitting(false);
+          return;
+        }
+
         if (!photoFile) {
           setFormError('Vui lòng chụp và tải lên ảnh thực tế của kiện hàng.');
           setSubmitting(false);
@@ -227,12 +126,12 @@ export const TripDetails: React.FC = () => {
 
         const formData = new FormData();
         formData.append('trip_id', trip.id);
-        formData.append('pickup_name', pickupName.trim());
-        formData.append('pickup_lat', pickupLat.toString());
-        formData.append('pickup_lng', pickupLng.toString());
-        formData.append('dropoff_name', dropoffName.trim());
-        formData.append('dropoff_lat', dropoffLat.toString());
-        formData.append('dropoff_lng', dropoffLng.toString());
+        formData.append('pickup_name', trip.origin_name);
+        formData.append('pickup_lat', trip.origin_lat.toString());
+        formData.append('pickup_lng', trip.origin_lng.toString());
+        formData.append('dropoff_name', trip.dest_name);
+        formData.append('dropoff_lat', trip.dest_lat.toString());
+        formData.append('dropoff_lng', trip.dest_lng.toString());
         formData.append('recipient_name', recipientName.trim());
         formData.append('recipient_phone', recipientPhone.trim());
         formData.append('description', packageDesc.trim());
@@ -246,6 +145,7 @@ export const TripDetails: React.FC = () => {
         await requestService.createPackageRequest(formData);
       }
 
+      alert('Đã gửi yêu cầu tham gia chuyến xe thành công! Vui lòng chờ tài xế duyệt.');
       navigate('/user/requests');
     } catch (err: any) {
       setFormError(err.response?.data?.error?.message || err.message || 'Không thể gửi yêu cầu đặt chỗ.');
@@ -492,35 +392,59 @@ export const TripDetails: React.FC = () => {
               </div>
             )}
 
-            {/* Chi phí nhiên liệu/sạc dự kiến & Ước tính chia sẻ tự nguyện */}
+            {/* Chi phí nhiên liệu/sạc: Phân biệt khi đã khởi hành vs khi đang nhận yêu cầu */}
             {trip.estimated_fuel_cost && trip.estimated_fuel_cost > 0 && (
-              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/80">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
-                      Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} dự kiến
-                    </span>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      Đoạn đường {trip.distance_km} km theo định mức tiêu hao phương tiện
-                    </p>
+              trip.status === 'IN_PROGRESS' || trip.status === 'COMPLETED' ? (
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} chính thức
+                      </span>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Chuyến xe đã khởi hành • Lộ trình {trip.distance_km} km
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-lg font-black text-emerald-800">
+                        {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">toàn chuyến xe</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-lg font-black text-emerald-700">
-                      {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
-                    </span>
-                    <span className="text-[10px] text-slate-500 block">toàn chuyến xe</span>
+                  <div className="mt-2.5 pt-2.5 border-t border-emerald-200 text-xs text-emerald-950 flex items-center justify-between">
+                    <span>Mức chia sẻ chính thức mỗi suất:</span>
+                    <strong className="text-emerald-800 font-extrabold text-sm">
+                      {Math.round(trip.estimated_fuel_cost / Math.max(1, trip.seats_reserved)).toLocaleString('vi-VN')} đ / người
+                    </strong>
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed italic">
+                    * Chi phí chia sẻ thực tế đã được hệ thống chốt khi xe khởi hành (hành khách tự nguyện gửi tài xế khi đến nơi). Đặt 2 người tính x2.
+                  </p>
                 </div>
-                <div className="mt-2.5 pt-2.5 border-t border-emerald-200/60 text-xs text-emerald-900 flex items-center justify-between">
-                  <span>Ước tính hỗ trợ chia sẻ mỗi người:</span>
-                  <strong className="text-emerald-800 font-extrabold text-sm">
-                    ~{Math.round(trip.estimated_fuel_cost / Math.max(1, (trip.seats_reserved + 1))).toLocaleString('vi-VN')} đ
-                  </strong>
+              ) : (
+                <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/80">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                        Chi phí {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc điện' : 'nhiên liệu'} dự kiến
+                      </span>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        Toàn bộ hành trình {trip.distance_km} km theo định mức tiêu hao
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-lg font-black text-emerald-700">
+                        {trip.estimated_fuel_cost.toLocaleString('vi-VN')} đ
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">toàn chuyến xe</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-emerald-900 mt-2.5 pt-2.5 border-t border-emerald-200/60 leading-relaxed">
+                    💡 <strong>Cơ chế chia sẻ tự nguyện:</strong> Số tiền hỗ trợ nhiên liệu/sạc cho từng người sẽ được hệ thống tính toán và chốt chính xác khi tài xế nhấn nút khởi hành (chia đều toàn bộ chi phí theo tổng số người tham gia thực tế trên xe; người đi 2 người sẽ tính x2).
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed italic">
-                  * GoX hoạt động phi thương mại: Số tiền trên là chi phí thực tế chia đều cho số người trên xe (không tích hợp thanh toán, người dùng tự nguyện gửi tài xế để hỗ trợ tiền {trip.vehicle?.fuel_type === 'ELECTRIC' ? 'sạc' : 'xăng/dầu'}).
-                </p>
-              </div>
+              )
             )}
           </div>
         </div>
@@ -624,114 +548,25 @@ export const TripDetails: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleBookingSubmit} className="space-y-4">
-                {/* 1. Điểm đón khách / nhận hàng */}
-                <div className="relative">
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span className="flex items-center">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 mr-1.5"></span>
-                      {requestType === 'RIDE' ? 'Điểm đón bạn:' : 'Điểm tài xế nhận hàng:'}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        pickupDistanceKm <= 15 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {pickupDistanceKm === 0
-                        ? 'Tại điểm xuất phát của chuyến'
-                        : `Cách xuất phát ${pickupDistanceKm} km ${pickupDistanceKm <= 15 ? '(Thuận tiện)' : '(Cần chủ động di chuyển)'}`}
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={pickupName}
-                      onChange={(e) => handlePickupChange(e.target.value)}
-                      placeholder="Gõ tên đường, quận, bến xe đón..."
-                      required
-                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    {searchingPickup && (
-                      <span className="absolute right-3 top-2.5 text-[10px] text-emerald-600 font-semibold animate-pulse">
-                        Đang tìm...
-                      </span>
-                    )}
-                  </div>
-
-                  {pickupSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
-                      {pickupSuggestions.map((item, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setPickupName(item.name);
-                            setPickupLat(item.lat);
-                            setPickupLng(item.lng);
-                            setPickupSuggestions([]);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-b-0"
-                        >
-                          {item.name}
-                        </button>
-                      ))}
+                {/* Lộ trình cố định của chuyến xe */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5 text-xs">
+                  <div className="flex items-start space-x-2 text-slate-700">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Điểm xuất phát</span>
+                      <strong className="text-slate-900">{trip.origin_name}</strong>
                     </div>
-                  )}
-                </div>
-
-                {/* 2. Điểm trả khách / giao hàng */}
-                <div className="relative">
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span className="flex items-center">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-600 mr-1.5"></span>
-                      {requestType === 'RIDE' ? 'Điểm trả bạn:' : 'Điểm giao hàng:'}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        dropoffDistanceKm <= 15 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {dropoffDistanceKm === 0
-                        ? 'Tại điểm đến của chuyến'
-                        : `Cách điểm đến ${dropoffDistanceKm} km ${dropoffDistanceKm <= 15 ? '(Thuận tiện)' : '(Cần chủ động di chuyển)'}`}
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={dropoffName}
-                      onChange={(e) => handleDropoffChange(e.target.value)}
-                      placeholder="Gõ tên đường, quận, địa điểm trả..."
-                      required
-                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    {searchingDropoff && (
-                      <span className="absolute right-3 top-2.5 text-[10px] text-emerald-600 font-semibold animate-pulse">
-                        Đang tìm...
-                      </span>
-                    )}
                   </div>
-
-                  {dropoffSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
-                      {dropoffSuggestions.map((item, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setDropoffName(item.name);
-                            setDropoffLat(item.lat);
-                            setDropoffLng(item.lng);
-                            setDropoffSuggestions([]);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-rose-50 border-b border-slate-100 last:border-b-0"
-                        >
-                          {item.name}
-                        </button>
-                      ))}
+                  <div className="flex items-start space-x-2 text-slate-700 pt-1.5 border-t border-slate-100">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Điểm kết thúc</span>
+                      <strong className="text-slate-900">{trip.dest_name}</strong>
                     </div>
-                  )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 pt-1 italic leading-relaxed">
+                    * Bạn chủ động di chuyển đến điểm xuất phát và tự túc đi lại từ điểm đến của chuyến xe.
+                  </p>
                 </div>
 
                 {/* 3. Form fields riêng cho RIDE */}
@@ -883,7 +718,7 @@ export const TripDetails: React.FC = () => {
                 {/* Nút nộp form */}
                 <button
                   type="submit"
-                  disabled={submitting || !pickupName.trim() || !dropoffName.trim()}
+                  disabled={submitting}
                   className={`w-full py-3.5 px-4 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                     requestType === 'RIDE'
                       ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'

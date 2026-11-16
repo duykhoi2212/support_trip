@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -25,11 +25,94 @@ export const SearchTrips: React.FC = () => {
 
   // Bộ lọc tìm kiếm
   const [originName, setOriginName] = useState<string>('');
+  const [originLat, setOriginLat] = useState<number | null>(null);
+  const [originLng, setOriginLng] = useState<number | null>(null);
+
   const [destName, setDestName] = useState<string>('');
+  const [destLat, setDestLat] = useState<number | null>(null);
+  const [destLng, setDestLng] = useState<number | null>(null);
+
   const [departureDate, setDepartureDate] = useState<string>('');
   const [requestType, setRequestType] = useState<'ALL' | 'RIDE' | 'PACKAGE'>('ALL');
   const [passengerCount, setPassengerCount] = useState<number>(1);
   const [cargoWeightKg, setCargoWeightKg] = useState<number>(5);
+
+  // Gợi ý địa điểm Autocomplete
+  const [originSuggestions, setOriginSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [destSuggestions, setDestSuggestions] = useState<Array<{ name: string; lat: number; lng: number }>>([]);
+  const [searchingOrigin, setSearchingOrigin] = useState(false);
+  const [searchingDest, setSearchingDest] = useState(false);
+
+  const originDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const destDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Xử lý gõ và gợi ý điểm xuất phát
+  const handleOriginChange = (val: string) => {
+    setOriginName(val);
+    setOriginLat(null);
+    setOriginLng(null);
+    if (originDebounceRef.current) clearTimeout(originDebounceRef.current);
+    if (!val.trim() || val.trim().length < 2) {
+      setOriginSuggestions([]);
+      return;
+    }
+
+    originDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearchingOrigin(true);
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
+        const data = await res.json();
+        const items = (data.features || []).map((f: any) => {
+          const p = f.properties || {};
+          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
+          return {
+            name: labelParts.join(', ') || p.name || val,
+            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
+            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
+          };
+        });
+        setOriginSuggestions(items);
+      } catch (err) {
+        console.warn('Lỗi tìm kiếm gợi ý điểm xuất phát:', err);
+      } finally {
+        setSearchingOrigin(false);
+      }
+    }, 350);
+  };
+
+  // Xử lý gõ và gợi ý điểm đến
+  const handleDestChange = (val: string) => {
+    setDestName(val);
+    setDestLat(null);
+    setDestLng(null);
+    if (destDebounceRef.current) clearTimeout(destDebounceRef.current);
+    if (!val.trim() || val.trim().length < 2) {
+      setDestSuggestions([]);
+      return;
+    }
+
+    destDebounceRef.current = setTimeout(async () => {
+      try {
+        setSearchingDest(true);
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(val.trim())}&limit=5`);
+        const data = await res.json();
+        const items = (data.features || []).map((f: any) => {
+          const p = f.properties || {};
+          const labelParts = [p.name, p.street, p.district, p.city, p.state].filter(Boolean);
+          return {
+            name: labelParts.join(', ') || p.name || val,
+            lng: Math.round(f.geometry.coordinates[0] * 10000) / 10000,
+            lat: Math.round(f.geometry.coordinates[1] * 10000) / 10000,
+          };
+        });
+        setDestSuggestions(items);
+      } catch (err) {
+        console.warn('Lỗi tìm kiếm gợi ý điểm đến:', err);
+      } finally {
+        setSearchingDest(false);
+      }
+    }, 350);
+  };
 
   const fetchTrips = async () => {
     try {
@@ -38,6 +121,14 @@ export const SearchTrips: React.FC = () => {
       const params: any = {};
       if (originName.trim()) params.origin_name = originName.trim();
       if (destName.trim()) params.dest_name = destName.trim();
+      if (originLat !== null && originLng !== null) {
+        params.pickup_lat = originLat;
+        params.pickup_lng = originLng;
+      }
+      if (destLat !== null && destLng !== null) {
+        params.dropoff_lat = destLat;
+        params.dropoff_lng = destLng;
+      }
       if (departureDate) params.departure_date = departureDate;
       if (requestType !== 'ALL') params.type = requestType;
       if (requestType === 'RIDE' && passengerCount > 0) params.passenger_count = passengerCount;
@@ -134,7 +225,7 @@ export const SearchTrips: React.FC = () => {
 
           {/* Hàng ô nhập điểm xuất phát, điểm đến & bộ lọc */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Điểm xuất phát:
               </label>
@@ -143,14 +234,40 @@ export const SearchTrips: React.FC = () => {
                 <input
                   type="text"
                   value={originName}
-                  onChange={(e) => setOriginName(e.target.value)}
-                  placeholder="Tỉnh/Thành, Bến xe..."
+                  onChange={(e) => handleOriginChange(e.target.value)}
+                  placeholder="Gõ tên đường, quận, trường học, bến xe..."
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+                {searchingOrigin && (
+                  <span className="absolute right-3 top-2.5 text-[10px] text-emerald-600 font-semibold animate-pulse">
+                    Đang tìm...
+                  </span>
+                )}
               </div>
+
+              {originSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+                  {originSuggestions.map((item, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setOriginName(item.name);
+                        setOriginLat(item.lat);
+                        setOriginLng(item.lng);
+                        setOriginSuggestions([]);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 border-b border-slate-100 last:border-b-0 flex items-start space-x-1.5"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                      <span className="line-clamp-2 text-slate-700">{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Điểm đến:
               </label>
@@ -159,11 +276,37 @@ export const SearchTrips: React.FC = () => {
                 <input
                   type="text"
                   value={destName}
-                  onChange={(e) => setDestName(e.target.value)}
-                  placeholder="Tỉnh/Thành, Điểm đến..."
+                  onChange={(e) => handleDestChange(e.target.value)}
+                  placeholder="Gõ địa chỉ, quận, địa danh đến..."
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+                {searchingDest && (
+                  <span className="absolute right-3 top-2.5 text-[10px] text-emerald-600 font-semibold animate-pulse">
+                    Đang tìm...
+                  </span>
+                )}
               </div>
+
+              {destSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+                  {destSuggestions.map((item, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setDestName(item.name);
+                        setDestLat(item.lat);
+                        setDestLng(item.lng);
+                        setDestSuggestions([]);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-rose-50 border-b border-slate-100 last:border-b-0 flex items-start space-x-1.5"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-rose-500 mt-0.5 flex-shrink-0" />
+                      <span className="line-clamp-2 text-slate-700">{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -372,18 +515,30 @@ export const SearchTrips: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Khoảng cách lân cận so với điểm tìm kiếm (nếu có) */}
+                  {/* Khoảng cách giữa điểm xuất phát/kết thúc của xe và điểm đón/giao của bạn */}
                   {(trip.pickup_distance_km !== undefined || trip.dropoff_distance_km !== undefined) && (
-                    <div className="flex flex-wrap gap-1.5 mb-3 text-[10px] font-bold">
+                    <div className="mb-3.5 p-2.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-1.5 text-[11px]">
                       {trip.pickup_distance_km !== undefined && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          Đón cách: {trip.pickup_distance_km} km
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600 flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 flex-shrink-0" />
+                            Xuất phát cách nơi bạn đi:
+                          </span>
+                          <strong className="text-emerald-900 font-bold bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-xs">
+                            {trip.pickup_distance_km} km
+                          </strong>
+                        </div>
                       )}
                       {trip.dropoff_distance_km !== undefined && (
-                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200">
-                          Trả cách: {trip.dropoff_distance_km} km
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600 flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 mr-1.5 flex-shrink-0" />
+                            Đến nơi cách điểm bạn đến:
+                          </span>
+                          <strong className="text-rose-900 font-bold bg-white px-2 py-0.5 rounded-md border border-rose-200 shadow-xs">
+                            {trip.dropoff_distance_km} km
+                          </strong>
+                        </div>
                       )}
                     </div>
                   )}

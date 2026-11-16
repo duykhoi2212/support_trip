@@ -328,11 +328,15 @@ export class TripService {
       }
     }
 
-    if (filters.origin_name) {
+    const hasPickupCoords = filters.pickup_lat !== undefined && filters.pickup_lng !== undefined;
+    const hasDropoffCoords = filters.dropoff_lat !== undefined && filters.dropoff_lng !== undefined;
+
+    // Chỉ lọc chuỗi bằng SQL khi không cung cấp tọa độ cho điểm tương ứng
+    if (filters.origin_name && !hasPickupCoords) {
       whereClause.origin_name = { contains: filters.origin_name, mode: 'insensitive' };
     }
 
-    if (filters.dest_name) {
+    if (filters.dest_name && !hasDropoffCoords) {
       whereClause.dest_name = { contains: filters.dest_name, mode: 'insensitive' };
     }
 
@@ -360,12 +364,6 @@ export class TripService {
       orderBy: { departure_time: 'asc' },
     });
 
-    const hasCoords =
-      filters.pickup_lat !== undefined &&
-      filters.pickup_lng !== undefined &&
-      filters.dropoff_lat !== undefined &&
-      filters.dropoff_lng !== undefined;
-
     const matchedTrips: any[] = [];
 
     for (const trip of trips) {
@@ -387,36 +385,37 @@ export class TripService {
       }
 
       // 2. So sánh khoảng cách trắc địa điểm đón <= 15km và điểm trả <= 15km
-      if (hasCoords) {
-        const pickupDist = calculateHaversineDistanceKm(
+      let pickupDist: number | undefined = undefined;
+      let dropoffDist: number | undefined = undefined;
+
+      if (hasPickupCoords) {
+        pickupDist = calculateHaversineDistanceKm(
           filters.pickup_lat!,
           filters.pickup_lng!,
           trip.origin_lat,
           trip.origin_lng
         );
-        const dropoffDist = calculateHaversineDistanceKm(
+        if (pickupDist > 15) continue;
+      }
+
+      if (hasDropoffCoords) {
+        dropoffDist = calculateHaversineDistanceKm(
           filters.dropoff_lat!,
           filters.dropoff_lng!,
           trip.dest_lat,
           trip.dest_lng
         );
-
-        // Bỏ qua chuyến nếu điểm đón > 15km HOẶC điểm trả > 15km
-        if (pickupDist > 15 || dropoffDist > 15) {
-          continue;
-        }
-
-        matchedTrips.push({
-          ...trip,
-          pickup_distance_km: pickupDist,
-          dropoff_distance_km: dropoffDist,
-        });
-      } else {
-        matchedTrips.push(trip);
+        if (dropoffDist > 15) continue;
       }
+
+      matchedTrips.push({
+        ...trip,
+        pickup_distance_km: pickupDist,
+        dropoff_distance_km: dropoffDist,
+      });
     }
 
-    if (hasCoords) {
+    if (hasPickupCoords || hasDropoffCoords) {
       // Sắp xếp ưu tiên các chuyến có cự ly đón + trả gần nhất
       matchedTrips.sort((a, b) => {
         const sumA = (a.pickup_distance_km || 0) + (a.dropoff_distance_km || 0);

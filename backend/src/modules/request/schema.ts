@@ -5,23 +5,23 @@ const VIETNAMESE_PHONE_REGEX = /^(0)(3|5|7|8|9)[0-9]{8}$/;
 
 export const createRideRequestSchema = z.object({
   trip_id: z.coerce.string({ required_error: 'Vui lòng chọn chuyến xe' }),
-  pickup_name: z.string({ required_error: 'Vui lòng nhập tên điểm đón' }).min(2).max(255),
-  pickup_lat: z.coerce.number({ required_error: 'Tọa độ điểm đón không hợp lệ' }),
-  pickup_lng: z.coerce.number({ required_error: 'Tọa độ điểm đón không hợp lệ' }),
-  dropoff_name: z.string({ required_error: 'Vui lòng nhập tên điểm trả' }).min(2).max(255),
-  dropoff_lat: z.coerce.number({ required_error: 'Tọa độ điểm trả không hợp lệ' }),
-  dropoff_lng: z.coerce.number({ required_error: 'Tọa độ điểm trả không hợp lệ' }),
+  pickup_name: z.string().min(2).max(255).optional(),
+  pickup_lat: z.coerce.number().optional(),
+  pickup_lng: z.coerce.number().optional(),
+  dropoff_name: z.string().min(2).max(255).optional(),
+  dropoff_lat: z.coerce.number().optional(),
+  dropoff_lng: z.coerce.number().optional(),
   passenger_count: z.coerce.number().int().min(1, 'Số lượng hành khách tối thiểu là 1').default(1),
 });
 
 export const createPackageRequestSchema = z.object({
   trip_id: z.coerce.string({ required_error: 'Vui lòng chọn chuyến xe' }),
-  pickup_name: z.string({ required_error: 'Vui lòng nhập điểm gửi hàng' }).min(2).max(255),
-  pickup_lat: z.coerce.number({ required_error: 'Tọa độ điểm gửi không hợp lệ' }),
-  pickup_lng: z.coerce.number({ required_error: 'Tọa độ điểm gửi không hợp lệ' }),
-  dropoff_name: z.string({ required_error: 'Vui lòng nhập điểm nhận hàng' }).min(2).max(255),
-  dropoff_lat: z.coerce.number({ required_error: 'Tọa độ điểm nhận không hợp lệ' }),
-  dropoff_lng: z.coerce.number({ required_error: 'Tọa độ điểm nhận không hợp lệ' }),
+  pickup_name: z.string().min(2).max(255).optional(),
+  pickup_lat: z.coerce.number().optional(),
+  pickup_lng: z.coerce.number().optional(),
+  dropoff_name: z.string().min(2).max(255).optional(),
+  dropoff_lat: z.coerce.number().optional(),
+  dropoff_lng: z.coerce.number().optional(),
   recipient_name: z.string({ required_error: 'Vui lòng nhập họ tên người nhận' }).min(2).max(100),
   recipient_phone: z
     .string({ required_error: 'Vui lòng nhập số điện thoại người nhận' })

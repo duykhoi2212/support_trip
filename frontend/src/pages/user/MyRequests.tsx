@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Filter,
   Car,
-  Fuel
+  Fuel,
+  Eye
 } from 'lucide-react';
 import { requestService } from '../../services/requestService';
 import { TransportRequest, RequestStatus } from '../../types';
@@ -267,9 +268,21 @@ export const MyRequests: React.FC = () => {
                 <div className="p-5 flex-1 space-y-4">
                   {/* Chuyến xe liên kết */}
                   {req.trip && (
-                    <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between">
-                      <span>Chuyến: <strong>{req.trip.code}</strong></span>
-                      <span>Khởi hành: {new Date(req.trip.departure_time).toLocaleDateString('vi-VN')}</span>
+                    <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between">
+                      <div>
+                        <span>Chuyến xe: <strong className="text-slate-900">{req.trip.code}</strong></span>
+                        <span className="block text-[11px] text-slate-400 mt-0.5">
+                          Khởi hành: {new Date(req.trip.departure_time).toLocaleString('vi-VN')}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/trips/${req.trip.id}`}
+                        className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 font-bold text-xs border border-slate-200 hover:border-emerald-300 transition-colors shadow-sm"
+                        title="Bấm để xem toàn bộ thông tin chi tiết chuyến xe"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Xem chi tiết chuyến</span>
+                      </Link>
                     </div>
                   )}
 
@@ -377,9 +390,19 @@ export const MyRequests: React.FC = () => {
                   )}
                 </div>
 
-                {/* Footer card: Nút hủy */}
-                {canCancel && (
-                  <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+                {/* Footer card: Xem chi tiết chuyến xe & Nút hủy */}
+                <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between">
+                  {req.trip ? (
+                    <Link
+                      to={`/trips/${req.trip.id}`}
+                      className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>Xem chi tiết chuyến</span>
+                    </Link>
+                  ) : <div />}
+
+                  {canCancel && (
                     <button
                       type="button"
                       onClick={() => handleOpenCancelModal(req)}
@@ -387,8 +410,8 @@ export const MyRequests: React.FC = () => {
                     >
                       Hủy yêu cầu
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
