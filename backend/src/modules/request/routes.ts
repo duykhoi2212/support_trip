@@ -12,6 +12,7 @@ router.use(authenticateToken);
 router.post('/ride', RequestController.createRide);
 router.post('/package', uploadImage.single('photo'), RequestController.createPackage);
 router.get('/mine', RequestController.getMine);
+router.get('/history', RequestController.getUserHistory);
 router.post('/:id/cancel', RequestController.cancel);
 
 // 2. Chức năng Tài xế (Driver)

@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ApiSuccessResponse, TransportRequest, Trip } from '../types';
+import { ApiSuccessResponse, TransportRequest, Trip, UserHistoryResponse } from '../types';
 
 export const requestService = {
   /**
@@ -103,6 +103,19 @@ export const requestService = {
    */
   async completeTrip(tripId: string): Promise<Trip> {
     const res = await api.post<ApiSuccessResponse<Trip>>(`/requests/trip/${tripId}/complete`);
+    return res.data.data;
+  },
+
+  /**
+   * Xem lịch sử các yêu cầu đã kết thúc (Người dùng)
+   */
+  async getUserHistory(query?: {
+    status?: string;
+    type?: string;
+  }): Promise<UserHistoryResponse> {
+    const res = await api.get<ApiSuccessResponse<UserHistoryResponse>>('/requests/history', {
+      params: query,
+    });
     return res.data.data;
   },
 };

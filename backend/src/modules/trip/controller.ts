@@ -82,5 +82,41 @@ export class TripController {
       next(error);
     }
   }
+
+  static async searchAi(req: Request, res: Response, next: NextFunction) {
+    try {
+      const prompt = req.body.prompt || req.query.prompt;
+      if (!prompt || typeof prompt !== 'string') {
+        throw new AppError(400, 'PROMPT_REQUIRED', 'Vui lòng nhập nội dung tìm kiếm.');
+      }
+
+      const result = await TripService.searchTripsWithAi(prompt);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getDriverHistory(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
+      const query = {
+        status: req.query.status as string | undefined,
+        from_date: req.query.from_date as string | undefined,
+        to_date: req.query.to_date as string | undefined,
+      };
+
+      const result = await TripService.getDriverHistory(req.user.id, query);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 

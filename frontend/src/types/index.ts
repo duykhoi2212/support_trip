@@ -106,6 +106,7 @@ export interface Trip {
   _count?: {
     transport_requests: number;
   };
+  transport_requests?: TransportRequest[];
 }
 
 // -------------------------------------------------------------
@@ -193,4 +194,45 @@ export interface RouteResult {
   route_polyline: string;
   major_roads?: string[];
   steps?: RouteStep[];
+}
+
+export interface AiSearchCriteria {
+  origin_name?: string;
+  dest_name?: string;
+  departure_date?: string;
+  type?: RequestType;
+  passenger_count?: number;
+  explanation: string;
+  is_fallback: boolean;
+}
+
+export interface AiSearchResult {
+  trips: Trip[];
+  extracted_criteria: AiSearchCriteria;
+  is_fallback: boolean;
+  explanation: string;
+}
+
+export interface DriverHistoryStats {
+  total_completed_trips: number;
+  total_cancelled_trips: number;
+  total_passengers_served: number;
+  total_packages_delivered: number;
+  total_fuel_received: number;
+}
+
+export interface DriverHistoryResponse {
+  trips: Trip[];
+  stats: DriverHistoryStats;
+}
+
+export interface UserHistoryStats {
+  total_rides: number;
+  total_packages: number;
+  total_fuel_shared: number;
+}
+
+export interface UserHistoryResponse {
+  requests: TransportRequest[];
+  stats: UserHistoryStats;
 }

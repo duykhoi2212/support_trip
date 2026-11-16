@@ -7,8 +7,11 @@ export const tripRouter = Router();
 
 // Routes công khai (Public)
 tripRouter.get('/search', TripController.search);
+tripRouter.post('/search/ai', TripController.searchAi);
+tripRouter.get('/search/ai', TripController.searchAi);
 
 // Routes dành cho Tài xế (DRIVER)
+tripRouter.get('/driver/history', authenticateToken, requireRole([user_role.DRIVER]), TripController.getDriverHistory);
 tripRouter.post('/', authenticateToken, requireRole([user_role.DRIVER]), TripController.create);
 tripRouter.get('/mine', authenticateToken, requireRole([user_role.DRIVER]), TripController.getMyTrips);
 tripRouter.post('/:id/cancel', authenticateToken, requireRole([user_role.DRIVER]), TripController.cancel);

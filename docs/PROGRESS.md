@@ -31,7 +31,7 @@ Trạng thái ký hiệu:
 | `CM-02` | Đăng nhập hệ thống (JWT) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra trạng thái khóa (LOCKED_TEMP, LOCKED_PERM) |
 | `CM-03` | Quản lý hồ sơ cá nhân (Họ tên, email, avatar, đổi mật khẩu) | 🟢 Đã xong | `[x]` | `[x]` | Upload avatar qua Multer |
 | `CM-EXTRA` | Quên & Đặt lại mật khẩu (Token 15p) | 🟢 Đã xong | `[x]` | `[x]` | Xác thực SĐT + Email, JWT Token an toàn |
-| `CM-04` | Báo cáo sự cố (User / Driver gửi báo cáo) | 🔴 Chưa làm | `[ ]` | `[ ]` | Đính kèm chuyến xe liên quan (Giai đoạn 6) |
+| `CM-04` | Báo cáo sự cố (User / Driver gửi báo cáo) | 🟢 Đã xong | `[x]` | `[x]` | Gửi sự cố từ Lịch sử chuyến đi (`IncidentReport`) |
 
 ### 2.2. Chức năng Tài xế (Driver - DR)
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
@@ -46,7 +46,7 @@ Trạng thái ký hiệu:
 | Mã | Tên chức năng | Trạng thái | Tầng Backend | Giao diện Frontend | Ghi chú & Commit |
 | :---: | :--- | :---: | :---: | :---: | :--- |
 | `US-01` | Tạo yêu cầu vận chuyển (Đi nhờ / Gửi đồ) | 🟢 Đã xong | `[x]` | `[x]` | Kiểm tra trắc địa <= 2km từ polyline thực tế, upload ảnh hàng, tự tính m2 |
-| `US-02` | Tìm kiếm chuyến xe bằng AI (Gemini tự nhiên) & Bộ lọc | 🔴 Chưa làm | `[ ]` | `[ ]` | Dự phòng tự động nếu AI lỗi (Giai đoạn 6) |
+| `US-02` | Tìm kiếm chuyến xe bằng AI (Gemini tự nhiên) & Bộ lọc | 🟢 Đã xong | `[x]` | `[x]` | Bóc tách ngôn ngữ tự nhiên, kết nối bộ lọc <= 15km |
 | `US-03` | Theo dõi trạng thái & Hủy yêu cầu | 🟢 Đã xong | `[x]` | `[x]` | Chỉ hủy khi chưa IN_PROGRESS, hoàn trả sức chứa xe nguyên tử |
 
 ### 2.4. Chức năng Quản trị viên (Admin - AD)
@@ -63,11 +63,19 @@ Trạng thái ký hiệu:
 | `CS-02` | Chốt tỷ lệ hủy tuần (T2-CN, giờ VN) & Khóa tài khoản | 🟢 Đã xong | `[x]` | `[x]` | Tỷ lệ > 5%: lần 1 khóa 2 tuần, lần 2 khóa vĩnh viễn |
 | `CS-03` | Tự động mở khóa tài khoản LOCKED_TEMP sau 14 ngày | 🟢 Đã xong | `[x]` | `[x]` | Quét định kỳ hằng giờ + chạy bù khi reboot |
 | `CS-04` | Kiểm tra sức chứa & Chống chồng lịch nguyên tử | 🟢 Đã xong | `[x]` | `[x]` | Transaction + SELECT FOR UPDATE |
-| `CS-05` | Dự phòng khi AI / Map gặp lỗi | 🔴 Chưa làm | `[ ]` | `[ ]` | Map lỗi: chặn tạo chuyến & thông báo; AI lỗi: fallback bộ lọc |
+| `CS-05` | Dự phòng khi AI / Map gặp lỗi | 🟢 Đã xong | `[x]` | `[x]` | Regex Fallback Engine tự động khi Gemini API lỗi/hết quota |
 
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-16 (Giai đoạn 6 - CHẶNG 2: TÌM KIẾM AI GEMINI (US-02), DỰ PHÒNG CS-05 & HỆ THỐNG LỊCH SỬ CHUYẾN XE)**:
+  - **AI Adapter Gemini (`US-02`)**: Tích hợp `backend/src/adapters/ai/gemini.ts` kết nối Google Gemini API (`gemini-1.5-flash`), phân tích câu tự nhiên tiếng Việt bóc tách điểm xuất phát, điểm đến, ngày giờ và số người/kiện hàng.
+  - **Cơ chế Dự phòng Thông minh (`CS-05`)**: Tích hợp Regex Fallback Engine xử lý mượt mà khi API key thiếu/lỗi/hết quota, tự động bóc tách từ khóa mà không làm gián đoạn trải nghiệm người dùng.
+  - **Giao diện Tìm kiếm AI**: Bổ sung tab tìm kiếm bằng AI trên `SearchTrips.tsx`, các prompt mẫu (chips), banner hiển thị kết quả phân tích AI và nút làm mới.
+  - **Lịch sử Chuyến xe Tài xế (`/driver/history`)**: Trang quản lý các chuyến `COMPLETED` / `CANCELLED`, kèm 4 thẻ Dashboard thống kê: tổng chuyến thành công, chuyến hủy, lượt khách phục vụ và tổng tiền chi phí nhiên liệu/sạc đã nhận.
+  - **Lịch sử Chuyến xe Người dùng (`/user/history`)**: Trang quản lý các yêu cầu đi nhờ/gửi đồ đã hoàn thành/hủy, thông tin xe, số tiền đã đóng góp và modal **"Báo cáo sự cố"** gửi trực tiếp lên CSDL cho Admin.
+  - **Điều hướng Navbar**: Bổ sung menu "Lịch sử chuyến xe" (Tài xế) và "Lịch sử chuyến đi" (Người dùng) trên Navbar và Profile Dropdown.
+  - **Kiểm thử**: Viết mới `backend/tests/ai-search-history.test.ts` (9 tests), toàn bộ **68/68 Vitest tests passed 100%**.
 - **2026-11-16 (Giai đoạn 6 - CHẶNG 1: HOÀN THIỆN ĐIỀU PHỐI HUB-TO-HUB & CƠ CHẾ CHIA SẺ CHI PHÍ NHIÊN LIỆU)**:
   - **Mô hình Hub-to-Hub**: Loại bỏ việc nhập điểm đón/trả tùy biến của khách hàng. Điểm đón/trả mặc định gắn liền với điểm xuất phát và kết thúc của chuyến xe.
   - **Bộ lọc tìm kiếm 15km & Autocomplete**: Tích hợp gợi ý địa điểm thông minh (Autocomplete Geocoding) trên trang chủ `/` và trang tìm kiếm `/trips`. Hệ thống lọc chuyến xe có điểm xuất phát cách điểm đi $\le 15\text{ km}$ và điểm kết thúc cách điểm đến $\le 15\text{ km}$, kèm thông số khoảng cách trực quan trên thẻ chuyến.

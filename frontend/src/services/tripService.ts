@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ApiSuccessResponse, Trip } from '../types';
+import { ApiSuccessResponse, Trip, AiSearchResult, DriverHistoryResponse } from '../types';
 
 export const tripService = {
   async getMyTrips(status?: string): Promise<Trip[]> {
@@ -49,6 +49,22 @@ export const tripService = {
     cargo_area_m2?: number;
   }): Promise<Trip[]> {
     const res = await api.get<ApiSuccessResponse<Trip[]>>('/trips/search', { params: filters });
+    return res.data.data;
+  },
+
+  async searchTripsWithAi(prompt: string): Promise<AiSearchResult> {
+    const res = await api.post<ApiSuccessResponse<AiSearchResult>>('/trips/search/ai', { prompt });
+    return res.data.data;
+  },
+
+  async getDriverHistory(query?: {
+    status?: string;
+    from_date?: string;
+    to_date?: string;
+  }): Promise<DriverHistoryResponse> {
+    const res = await api.get<ApiSuccessResponse<DriverHistoryResponse>>('/trips/driver/history', {
+      params: query,
+    });
     return res.data.data;
   },
 };

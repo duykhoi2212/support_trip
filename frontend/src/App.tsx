@@ -14,6 +14,8 @@ import { TripOperation } from './pages/driver/TripOperation';
 import { SearchTrips } from './pages/trip/SearchTrips';
 import { TripDetails } from './pages/trip/TripDetails';
 import { MyRequests } from './pages/user/MyRequests';
+import { UserHistory } from './pages/user/UserHistory';
+import { DriverHistory } from './pages/driver/DriverHistory';
 import { Notifications } from './pages/notification/Notifications';
 
 // Trang chủ thông minh theo vai trò
@@ -63,6 +65,15 @@ export default function App() {
               />
 
               <Route
+                path="/user/history"
+                element={
+                  <ProtectedRoute allowedRoles={['USER']}>
+                    <UserHistory />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/notifications"
                 element={
                   <ProtectedRoute>
@@ -86,6 +97,15 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRoles={['DRIVER']}>
                     <MyTrips />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/driver/history"
+                element={
+                  <ProtectedRoute allowedRoles={['DRIVER']}>
+                    <DriverHistory />
                   </ProtectedRoute>
                 }
               />

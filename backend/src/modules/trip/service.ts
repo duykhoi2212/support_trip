@@ -1,7 +1,9 @@
 import { trip_status, vehicle_status, actor_type, request_status } from '@prisma/client';
+import axios from 'axios';
 import { prisma } from '../../utils/prisma.js';
 import { AppError } from '../../middlewares/errorHandler.js';
 import { mapAdapter } from '../../adapters/map/ors.js';
+import { GeminiAdapter } from '../../adapters/ai/gemini.js';
 import { calculateHaversineDistanceKm } from '../../utils/distance.js';
 import { createTripSchema, cancelTripSchema, searchTripsSchema } from './schema.js';
 import { z } from 'zod';
@@ -425,6 +427,193 @@ export class TripService {
     }
 
     return matchedTrips;
+  }
+
+  /**
+   * US-02: Tìm kiếm chuyến xe bằng Ngôn ngữ tự nhiên với Gemini AI
+   * Kết hợp Geocoding và bộ lọc bán kính <= 15km
+   */
+  static async searchTripsWithAi(prompt: string) {
+    const parsed = await GeminiAdapter.parseSearchPrompt(prompt);
+
+    let pickupCoords: { lat: number; lng: number } | null = null;
+    let dropoffCoords: { lat: number; lng: number } | null = null;
+
+    if (parsed.origin_name) {
+      try {
+        const res = await axios.get(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(parsed.origin_name)}&limit=1`,
+          { timeout: 3000 }
+        );
+        const feat = res.data?.features?.[0];
+        if (feat?.geometry?.coordinates) {
+          pickupCoords = {
+            lng: feat.geometry.coordinates[0],
+            lat: feat.geometry.coordinates[1],
+          };
+        }
+      } catch {}
+    }
+
+    if (parsed.dest_name) {
+      try {
+        const res = await axios.get(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(parsed.dest_name)}&limit=1`,
+          { timeout: 3000 }
+        );
+        const feat = res.data?.features?.[0];
+        if (feat?.geometry?.coordinates) {
+          dropoffCoords = {
+            lng: feat.geometry.coordinates[0],
+            lat: feat.geometry.coordinates[1],
+          };
+        }
+      } catch {}
+    }
+
+    const searchFilters: any = {
+      origin_name: parsed.origin_name,
+      dest_name: parsed.dest_name,
+      departure_date: parsed.departure_date,
+      pickup_lat: pickupCoords?.lat,
+      pickup_lng: pickupCoords?.lng,
+      dropoff_lat: dropoffCoords?.lat,
+      dropoff_lng: dropoffCoords?.lng,
+      seat_count: parsed.type === 'RIDE' ? parsed.passenger_count : undefined,
+    };
+
+    const trips = await this.searchTrips(searchFilters);
+
+    return {
+      trips,
+      extracted_criteria: parsed,
+      is_fallback: parsed.is_fallback,
+      explanation: parsed.explanation,
+    };
+  }
+
+  /**
+   * Lấy lịch sử các chuyến xe đã kết thúc (COMPLETED / CANCELLED) của tài xế
+   * Kèm thống kê tổng hợp số lượt khách, số kiện hàng, tổng tiền nhiên liệu nhận được
+   */
+  static async getDriverHistory(
+    driverId: bigint,
+    query?: { status?: string; from_date?: string; to_date?: string }
+  ) {
+    const whereClause: any = {
+      driver_id: driverId,
+      status: {
+        in: [trip_status.COMPLETED, trip_status.CANCELLED],
+      },
+    };
+
+    if (query?.status && (query.status === 'COMPLETED' || query.status === 'CANCELLED')) {
+      whereClause.status = query.status as trip_status;
+    }
+
+    if (query?.from_date || query?.to_date) {
+      whereClause.departure_time = {};
+      if (query.from_date) {
+        whereClause.departure_time.gte = new Date(query.from_date);
+      }
+      if (query.to_date) {
+        const toD = new Date(query.to_date);
+        toD.setHours(23, 59, 59, 999);
+        whereClause.departure_time.lte = toD;
+      }
+    }
+
+    const trips = await prisma.trip.findMany({
+      where: whereClause,
+      include: {
+        vehicle: true,
+        transport_requests: {
+          where: {
+            status: { in: [request_status.ACCEPTED, request_status.COMPLETED] },
+          },
+          include: {
+            package_items: true,
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                avatar_url: true,
+                phone: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { departure_time: 'desc' },
+    });
+
+    // Tính thống kê tổng hợp
+    const allDriverFinishedTrips = await prisma.trip.findMany({
+      where: {
+        driver_id: driverId,
+        status: { in: [trip_status.COMPLETED, trip_status.CANCELLED] },
+      },
+      include: {
+        transport_requests: {
+          where: {
+            status: { in: [request_status.ACCEPTED, request_status.COMPLETED] },
+          },
+          include: { package_items: true },
+        },
+      },
+    });
+
+    let totalCompletedTrips = 0;
+    let totalCancelledTrips = 0;
+    let totalPassengersServed = 0;
+    let totalPackagesDelivered = 0;
+    let totalFuelReceived = 0;
+
+    for (const t of allDriverFinishedTrips) {
+      if (t.status === trip_status.COMPLETED) {
+        totalCompletedTrips++;
+        for (const req of t.transport_requests) {
+          if (req.type === 'RIDE') {
+            totalPassengersServed += req.passenger_count || 1;
+          } else {
+            totalPackagesDelivered += req.package_items.length || 1;
+          }
+          if (req.shared_fuel_cost && req.shared_fuel_cost > 0) {
+            totalFuelReceived += req.shared_fuel_cost;
+          }
+        }
+      } else if (t.status === trip_status.CANCELLED) {
+        totalCancelledTrips++;
+      }
+    }
+
+    return {
+      trips: trips.map((t) => ({
+        ...t,
+        id: t.id.toString(),
+        driver_id: t.driver_id.toString(),
+        vehicle_id: t.vehicle_id.toString(),
+        transport_requests: t.transport_requests.map((r) => ({
+          ...r,
+          id: r.id.toString(),
+          trip_id: r.trip_id.toString(),
+          user_id: r.user_id.toString(),
+          user: r.user ? { ...r.user, id: r.user.id.toString() } : null,
+          package_items: r.package_items.map((p) => ({
+            ...p,
+            id: p.id.toString(),
+            request_id: p.request_id.toString(),
+          })),
+        })),
+      })),
+      stats: {
+        total_completed_trips: totalCompletedTrips,
+        total_cancelled_trips: totalCancelledTrips,
+        total_passengers_served: totalPassengersServed,
+        total_packages_delivered: totalPackagesDelivered,
+        total_fuel_received: Math.round(totalFuelReceived),
+      },
+    };
   }
 }
 

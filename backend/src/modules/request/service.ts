@@ -896,5 +896,108 @@ export class RequestService {
       vehicle_id: completedTrip.vehicle_id.toString(),
     };
   }
+
+  /**
+   * Lấy lịch sử các yêu cầu đã kết thúc (COMPLETED / CANCELLED / REJECTED) của người dùng
+   * Kèm thông tin chuyến xe, xe, tài xế và thống kê tổng hợp
+   */
+  static async getUserHistory(
+    userId: bigint,
+    query?: { status?: string; type?: string }
+  ) {
+    const whereClause: any = {
+      user_id: userId,
+      status: {
+        in: [request_status.COMPLETED, request_status.CANCELLED, request_status.REJECTED],
+      },
+    };
+
+    if (query?.status && ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(query.status)) {
+      whereClause.status = query.status as request_status;
+    }
+
+    if (query?.type && ['RIDE', 'PACKAGE'].includes(query.type)) {
+      whereClause.type = query.type as any;
+    }
+
+    const requests = await prisma.transportRequest.findMany({
+      where: whereClause,
+      include: {
+        package_items: true,
+        trip: {
+          include: {
+            vehicle: true,
+            driver: {
+              select: {
+                id: true,
+                full_name: true,
+                avatar_url: true,
+                phone: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    // Thống kê tổng hợp cho người dùng
+    const allUserFinishedRequests = await prisma.transportRequest.findMany({
+      where: {
+        user_id: userId,
+        status: { in: [request_status.COMPLETED, request_status.CANCELLED, request_status.REJECTED] },
+      },
+    });
+
+    let totalRides = 0;
+    let totalPackages = 0;
+    let totalFuelShared = 0;
+
+    for (const r of allUserFinishedRequests) {
+      if (r.status === request_status.COMPLETED) {
+        if (r.type === request_type.RIDE) {
+          totalRides += r.passenger_count || 1;
+        } else {
+          totalPackages++;
+        }
+        if (r.shared_fuel_cost && r.shared_fuel_cost > 0) {
+          totalFuelShared += r.shared_fuel_cost;
+        }
+      }
+    }
+
+    return {
+      requests: requests.map((r) => ({
+        ...r,
+        id: r.id.toString(),
+        trip_id: r.trip_id.toString(),
+        user_id: r.user_id.toString(),
+        package_items: r.package_items.map((p) => ({
+          ...p,
+          id: p.id.toString(),
+          request_id: p.request_id.toString(),
+        })),
+        trip: r.trip
+          ? {
+              ...r.trip,
+              id: r.trip.id.toString(),
+              driver_id: r.trip.driver_id.toString(),
+              vehicle_id: r.trip.vehicle_id.toString(),
+              driver: r.trip.driver
+                ? {
+                    ...r.trip.driver,
+                    id: r.trip.driver.id.toString(),
+                  }
+                : null,
+            }
+          : null,
+      })),
+      stats: {
+        total_rides: totalRides,
+        total_packages: totalPackages,
+        total_fuel_shared: Math.round(totalFuelShared),
+      },
+    };
+  }
 }
 

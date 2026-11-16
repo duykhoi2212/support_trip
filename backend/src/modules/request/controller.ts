@@ -66,6 +66,26 @@ export class RequestController {
   }
 
   /**
+   * Xem lịch sử các yêu cầu đã kết thúc (User)
+   */
+  static async getUserHistory(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const query = {
+        status: req.query.status as string | undefined,
+        type: req.query.type as string | undefined,
+      };
+      const result = await RequestService.getUserHistory(userId, query);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Tài xế xem danh sách yêu cầu trên chuyến xe (Driver)
    */
   static async getTripRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {

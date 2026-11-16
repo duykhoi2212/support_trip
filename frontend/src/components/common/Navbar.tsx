@@ -9,7 +9,8 @@ import {
   Shield,
   CheckCheck,
   Package,
-  ArrowRight
+  ArrowRight,
+  Clock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { notificationService } from '../../services/notificationService';
@@ -183,14 +184,19 @@ export const Navbar = () => {
             </Link>
           )}
 
-          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi */}
+          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi & Lịch sử chuyến đi */}
           {user?.role === 'USER' && (
-            <Link to="/user/requests" className="hover:text-emerald-600 transition-colors">
-              Yêu cầu của tôi
-            </Link>
+            <>
+              <Link to="/user/requests" className="hover:text-emerald-600 transition-colors">
+                Yêu cầu của tôi
+              </Link>
+              <Link to="/user/history" className="hover:text-emerald-600 transition-colors">
+                Lịch sử chuyến đi
+              </Link>
+            </>
           )}
 
-          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện */}
+          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện, Lịch sử */}
           {user?.role === 'DRIVER' && (
             <>
               <Link to="/driver/trips" className="hover:text-emerald-600 transition-colors font-semibold">
@@ -201,6 +207,9 @@ export const Navbar = () => {
               </Link>
               <Link to="/driver/vehicles" className="hover:text-emerald-600 transition-colors font-semibold">
                 Phương tiện
+              </Link>
+              <Link to="/driver/history" className="hover:text-emerald-600 transition-colors font-semibold">
+                Lịch sử chuyến
               </Link>
             </>
           )}
@@ -368,13 +377,22 @@ export const Navbar = () => {
                     </Link>
 
                     {user.role === 'USER' && (
-                      <Link
-                        to="/user/requests"
-                        className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                      >
-                        <Package className="w-4 h-4" />
-                        <span>Yêu cầu vận chuyển</span>
-                      </Link>
+                      <>
+                        <Link
+                          to="/user/requests"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Package className="w-4 h-4" />
+                          <span>Yêu cầu vận chuyển</span>
+                        </Link>
+                        <Link
+                          to="/user/history"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>Lịch sử chuyến đi</span>
+                        </Link>
+                      </>
                     )}
 
                     {user.role === 'DRIVER' && (
@@ -392,6 +410,13 @@ export const Navbar = () => {
                         >
                           <Car className="w-4 h-4" />
                           <span>Phương tiện</span>
+                        </Link>
+                        <Link
+                          to="/driver/history"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>Lịch sử chuyến xe</span>
                         </Link>
                       </>
                     )}
