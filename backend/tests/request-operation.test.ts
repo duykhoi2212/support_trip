@@ -453,7 +453,7 @@ describe('Kiểm thử Module Yêu cầu vận chuyển & Điều hành chuyến
     const emergencyRes = await TripService.cancelTripInProgress(
       driverId,
       newTrip.id,
-      'Xe bị hỏng hộp số không thể tiếp tục di chuyển trên đường'
+      { reason: 'Xe bị hỏng hộp số không thể tiếp tục di chuyển trên đường' }
     );
     expect(emergencyRes.status).toBe(trip_status.CANCELLED);
 
