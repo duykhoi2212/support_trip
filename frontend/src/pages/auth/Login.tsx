@@ -151,6 +151,13 @@ export const Login = () => {
               Đăng ký ngay
             </Link>
           </div>
+
+          <div className="text-center text-xs text-slate-400 pt-1 flex items-center justify-center space-x-1">
+            <span>Dành cho Quản trị viên:</span>
+            <Link to="/admin/login" className="font-semibold text-slate-600 hover:text-emerald-600 transition-colors">
+              Cổng Quản trị viên ➔
+            </Link>
+          </div>
         </form>
       </div>
     </div>

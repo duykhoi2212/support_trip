@@ -19,6 +19,7 @@ import { DriverHistory } from './pages/driver/DriverHistory';
 import { UserManagement } from './pages/admin/UserManagement';
 import { IncidentManagement } from './pages/admin/IncidentManagement';
 import { TripStatistics } from './pages/admin/TripStatistics';
+import { AdminLogin } from './pages/admin/AdminLogin';
 import { Notifications } from './pages/notification/Notifications';
 
 // Trang chủ thông minh theo vai trò
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="/trips" element={<HomeRoute />} />
               <Route path="/trips/:id" element={<TripDetails />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
