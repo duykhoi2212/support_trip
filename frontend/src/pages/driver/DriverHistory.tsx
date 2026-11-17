@@ -64,6 +64,31 @@ export const DriverHistory: React.FC = () => {
     setStatusFilter('ALL');
     setFromDate('');
     setToDate('');
+    setTimeout(fetchHistory, 50);
+  };
+
+  const setQuickDate = (type: 'today' | '7days' | 'month' | 'clear') => {
+    const today = new Date();
+    const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+
+    if (type === 'today') {
+      const dStr = formatYMD(today);
+      setFromDate(dStr);
+      setToDate(dStr);
+    } else if (type === '7days') {
+      const past = new Date();
+      past.setDate(today.getDate() - 7);
+      setFromDate(formatYMD(past));
+      setToDate(formatYMD(today));
+    } else if (type === 'month') {
+      const past = new Date();
+      past.setMonth(today.getMonth() - 1);
+      setFromDate(formatYMD(past));
+      setToDate(formatYMD(today));
+    } else {
+      setFromDate('');
+      setToDate('');
+    }
   };
 
   return (
@@ -166,7 +191,7 @@ export const DriverHistory: React.FC = () => {
           </div>
 
           {/* Lọc theo ngày */}
-          <div className="flex items-center space-x-2 text-xs">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
             <div className="flex items-center space-x-1.5">
               <span className="text-slate-500 font-medium">Từ:</span>
               <input
@@ -187,19 +212,53 @@ export const DriverHistory: React.FC = () => {
             </div>
             <button
               type="submit"
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
             >
-              Lọc
+              Áp dụng
             </button>
-            {(fromDate || toDate) && (
+
+            {/* Quick buttons */}
+            <div className="flex items-center space-x-1 border-l border-slate-200 pl-3">
               <button
                 type="button"
-                onClick={handleResetFilter}
-                className="px-2.5 py-1.5 text-slate-500 hover:text-slate-800 underline"
+                onClick={() => {
+                  setQuickDate('today');
+                  setTimeout(fetchHistory, 50);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
               >
-                Xóa lọc
+                Hôm nay
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickDate('7days');
+                  setTimeout(fetchHistory, 50);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
+              >
+                7 ngày qua
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickDate('month');
+                  setTimeout(fetchHistory, 50);
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
+              >
+                30 ngày qua
+              </button>
+              {(fromDate || toDate) && (
+                <button
+                  type="button"
+                  onClick={handleResetFilter}
+                  className="px-2 py-1 text-rose-600 hover:text-rose-800 text-[11px] font-bold underline cursor-pointer"
+                >
+                  Xóa lọc ngày
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>

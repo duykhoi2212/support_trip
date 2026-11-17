@@ -41,6 +41,27 @@ export function getPreviousWeekRangeVN(targetDate: Date = new Date()): {
   return { weekStart: utcStart, weekEnd: utcEnd, weekStartDateOnly };
 }
 
+/**
+ * Tính toán mốc tuần hiện tại (Thứ Hai 00:00:00 - Chủ Nhật 23:59:59) theo múi giờ Việt Nam
+ */
+export function getCurrentWeekRangeVN(targetDate: Date = new Date()): {
+  weekStart: Date;
+  weekEnd: Date;
+  weekStartDateOnly: Date;
+} {
+  const zonedTarget = toZonedTime(targetDate, VIETNAM_TIMEZONE);
+  const zonedStart = startOfWeek(zonedTarget, { weekStartsOn: 1 });
+  const zonedEnd = endOfWeek(zonedTarget, { weekStartsOn: 1 });
+
+  const utcStart = fromZonedTime(zonedStart, VIETNAM_TIMEZONE);
+  const utcEnd = fromZonedTime(zonedEnd, VIETNAM_TIMEZONE);
+
+  const weekStartStr = formatInTimeZone(utcStart, VIETNAM_TIMEZONE, 'yyyy-MM-dd');
+  const weekStartDateOnly = new Date(`${weekStartStr}T00:00:00.000Z`);
+
+  return { weekStart: utcStart, weekEnd: utcEnd, weekStartDateOnly };
+}
+
 export class SchedulerService {
   /**
    * CS-01: Tự động đóng chuyến trước 6 tiếng khởi hành & chuyển yêu cầu PENDING thành EXPIRED

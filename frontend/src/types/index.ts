@@ -228,10 +228,19 @@ export interface DriverHistoryResponse {
   stats: DriverHistoryStats;
 }
 
+export interface UserHistoryCancellationStats {
+  week_confirmed: number;
+  week_cancelled: number;
+  week_rate: number;
+  is_violation: boolean;
+  total_violations: number;
+}
+
 export interface UserHistoryStats {
   total_rides: number;
   total_packages: number;
   total_fuel_shared: number;
+  cancellation?: UserHistoryCancellationStats;
 }
 
 export interface UserHistoryResponse {

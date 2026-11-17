@@ -12,7 +12,9 @@ import {
   Phone,
   User as UserIcon,
   AlertCircle,
-  X
+  X,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { requestService } from '../../services/requestService';
 import { incidentService } from '../../services/incidentService';
@@ -29,8 +31,10 @@ export const UserHistory: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Bộ lọc
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'CANCELLED' | 'REJECTED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'CANCELLED' | 'FAILED' | 'REJECTED'>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'RIDE' | 'PACKAGE'>('ALL');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
 
   // Modal Báo cáo sự cố
   const [selectedIncidentReq, setSelectedIncidentReq] = useState<TransportRequest | null>(null);
@@ -46,6 +50,8 @@ export const UserHistory: React.FC = () => {
       const query: any = {};
       if (statusFilter !== 'ALL') query.status = statusFilter;
       if (typeFilter !== 'ALL') query.type = typeFilter;
+      if (fromDate) query.from_date = fromDate;
+      if (toDate) query.to_date = toDate;
 
       const res = await requestService.getUserHistory(query);
       setRequests(res.requests);
@@ -60,6 +66,35 @@ export const UserHistory: React.FC = () => {
   useEffect(() => {
     fetchHistory();
   }, [statusFilter, typeFilter]);
+
+  const handleDateFilterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchHistory();
+  };
+
+  const setQuickDate = (type: 'today' | '7days' | 'month' | 'clear') => {
+    const today = new Date();
+    const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+
+    if (type === 'today') {
+      const dStr = formatYMD(today);
+      setFromDate(dStr);
+      setToDate(dStr);
+    } else if (type === '7days') {
+      const past = new Date();
+      past.setDate(today.getDate() - 7);
+      setFromDate(formatYMD(past));
+      setToDate(formatYMD(today));
+    } else if (type === 'month') {
+      const past = new Date();
+      past.setMonth(today.getMonth() - 1);
+      setFromDate(formatYMD(past));
+      setToDate(formatYMD(today));
+    } else {
+      setFromDate('');
+      setToDate('');
+    }
+  };
 
   const handleSubmitIncident = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,8 +137,8 @@ export const UserHistory: React.FC = () => {
         </p>
       </div>
 
-      {/* 3 Thẻ Dashboard Thống kê */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* 4 Thẻ Dashboard Thống kê */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center space-x-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6" />
@@ -128,94 +163,246 @@ export const UserHistory: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
             <Fuel className="w-6 h-6" />
           </div>
-          <div>
-            <span className="text-xs text-teal-800 font-bold block">Tổng tiền hỗ trợ đã chia sẻ</span>
+          <div className="truncate">
+            <span className="text-xs text-teal-800 font-bold block truncate">Tổng tiền hỗ trợ đã gửi</span>
             <strong className="text-xl font-black text-teal-950">
               {stats.total_fuel_shared.toLocaleString('vi-VN')} đ
             </strong>
           </div>
         </div>
+
+        {/* Thẻ 4: Tỷ lệ hủy chuyến tuần hiện tại (CS-02) */}
+        <div
+          className={`p-5 rounded-3xl border shadow-sm flex items-center space-x-4 ${
+            (stats.cancellation?.week_rate || 0) > 0.05
+              ? 'bg-rose-50/80 border-rose-200'
+              : (stats.cancellation?.week_rate || 0) >= 0.03
+              ? 'bg-amber-50/80 border-amber-200'
+              : 'bg-white border-slate-200'
+          }`}
+        >
+          <div
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+              (stats.cancellation?.week_rate || 0) > 0.05
+                ? 'bg-rose-600 text-white shadow-md'
+                : (stats.cancellation?.week_rate || 0) >= 0.03
+                ? 'bg-amber-500 text-white shadow-md'
+                : 'bg-emerald-50 text-emerald-600'
+            }`}
+          >
+            {(stats.cancellation?.week_rate || 0) > 0.05 ? (
+              <ShieldAlert className="w-6 h-6" />
+            ) : (
+              <ShieldCheck className="w-6 h-6" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium truncate">Tỷ lệ hủy tuần này</span>
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  (stats.cancellation?.week_rate || 0) > 0.05
+                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                    : (stats.cancellation?.week_rate || 0) >= 0.03
+                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                }`}
+              >
+                {(stats.cancellation?.week_rate || 0) > 0.05
+                  ? 'Vi phạm'
+                  : (stats.cancellation?.week_rate || 0) >= 0.03
+                  ? 'Cảnh báo'
+                  : 'An toàn'}
+              </span>
+            </div>
+            <strong className="text-xl font-black text-slate-900 block mt-0.5">
+              {stats.cancellation?.week_rate !== undefined
+                ? `${(stats.cancellation.week_rate * 100).toFixed(1)}%`
+                : '0.0%'}
+            </strong>
+            <span className="text-[11px] text-slate-400 block truncate">
+              {stats.cancellation
+                ? `${stats.cancellation.week_cancelled}/${stats.cancellation.week_confirmed} chuyến`
+                : '0/0 chuyến'}{' '}
+              (Quy tắc &le; 5%)
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Bộ lọc lịch sử */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm mb-8 flex flex-wrap items-center justify-between gap-4">
-        {/* Tabs trạng thái */}
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('ALL')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
-              statusFilter === 'ALL'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('COMPLETED')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
-              statusFilter === 'COMPLETED'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Đã hoàn thành
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('CANCELLED')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
-              statusFilter === 'CANCELLED'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Đã hủy
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('REJECTED')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
-              statusFilter === 'REJECTED'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Bị từ chối
-          </button>
+      {/* Bộ lọc lịch sử & Bộ lọc ngày */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm mb-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Tabs trạng thái */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('ALL')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                statusFilter === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('COMPLETED')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                statusFilter === 'COMPLETED'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Đã hoàn thành
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('CANCELLED')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                statusFilter === 'CANCELLED'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Đã hủy
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('FAILED')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                statusFilter === 'FAILED'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              }`}
+            >
+              Sự cố / Bị hủy
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('REJECTED')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                statusFilter === 'REJECTED'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Bị từ chối
+            </button>
+          </div>
+
+          {/* Tabs loại hình */}
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                typeFilter === 'ALL' ? 'bg-slate-200 text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Tất cả loại
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('RIDE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                typeFilter === 'RIDE' ? 'bg-emerald-100 text-emerald-800 font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Đi nhờ xe
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter('PACKAGE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                typeFilter === 'PACKAGE' ? 'bg-amber-100 text-amber-800 font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Gửi hàng
+            </button>
+          </div>
         </div>
 
-        {/* Tabs loại hình */}
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setTypeFilter('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              typeFilter === 'ALL' ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Mọi loại
-          </button>
-          <button
-            type="button"
-            onClick={() => setTypeFilter('RIDE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              typeFilter === 'RIDE' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Đi nhờ xe
-          </button>
-          <button
-            type="button"
-            onClick={() => setTypeFilter('PACKAGE')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              typeFilter === 'PACKAGE' ? 'bg-amber-100 text-amber-800' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            Gửi hàng
-          </button>
+        {/* Thanh lọc theo khoảng ngày & Lọc nhanh */}
+        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <form onSubmit={handleDateFilterSubmit} className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-500 font-semibold flex items-center">
+              <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
+              Lọc theo ngày:
+            </span>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-slate-400">Từ</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-slate-400">Đến</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition-colors cursor-pointer"
+            >
+              Áp dụng
+            </button>
+          </form>
+
+          {/* Phím tắt chọn nhanh khoảng ngày */}
+          <div className="flex items-center space-x-1.5">
+            <span className="text-slate-400 text-[11px]">Chọn nhanh:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setQuickDate('today');
+                setTimeout(fetchHistory, 50);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setQuickDate('7days');
+                setTimeout(fetchHistory, 50);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
+            >
+              7 ngày qua
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setQuickDate('month');
+                setTimeout(fetchHistory, 50);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors"
+            >
+              30 ngày qua
+            </button>
+            {(fromDate || toDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickDate('clear');
+                  setTimeout(fetchHistory, 50);
+                }}
+                className="px-2 py-1 text-rose-600 hover:text-rose-800 text-[11px] font-bold underline ml-1 cursor-pointer"
+              >
+                Xóa lọc ngày
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -247,6 +434,7 @@ export const UserHistory: React.FC = () => {
             const isCompleted = req.status === 'COMPLETED';
             const isCancelled = req.status === 'CANCELLED';
             const isRejected = req.status === 'REJECTED';
+            const isFailed = req.status === 'FAILED';
             const trip = req.trip;
 
             return (
@@ -275,12 +463,14 @@ export const UserHistory: React.FC = () => {
                       className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
                         isCompleted
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : isFailed
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
                           : isCancelled
                           ? 'bg-slate-100 text-slate-700 border border-slate-200'
-                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}
                     >
-                      {isCompleted ? '✓ Đã hoàn thành' : isCancelled ? '✕ Đã hủy' : '✕ Bị từ chối'}
+                      {isCompleted ? '✓ Đã hoàn thành' : isFailed ? '✕ Bị hủy do sự cố' : isCancelled ? '✕ Đã hủy' : '✕ Bị từ chối'}
                     </span>
 
                     {trip?.code && (
@@ -353,6 +543,22 @@ export const UserHistory: React.FC = () => {
                   {isCancelled && req.cancel_reason && (
                     <div className="p-3 rounded-2xl bg-slate-100 text-xs text-slate-700">
                       <strong>Lý do hủy:</strong> {req.cancel_reason}
+                    </div>
+                  )}
+                  {isFailed && (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                      <div className="font-bold flex items-center text-rose-800">
+                        <AlertTriangle className="w-3.5 h-3.5 mr-1.5 text-rose-600 flex-shrink-0" />
+                        <span>Chuyến đi bị hủy do sự cố:</span>
+                      </div>
+                      <p className="text-rose-800 font-medium">
+                        {req.cancel_reason || (req.fail_reason_code === 'ABSENT' ? 'Tài xế báo bạn không có mặt tại điểm đón lúc xuất phát.' : 'Chuyến đi gặp sự cố.')}
+                      </p>
+                      {req.counts_toward_cancel_rate && (
+                        <p className="text-[11px] text-rose-600/90 italic">
+                          * Sự cố này tính vào tỷ lệ hủy tuần của bạn do vắng mặt / không liên lạc được. Bạn có thể bấm "Báo cáo sự cố" bên phải để khiếu nại tới Admin nếu có nhầm lẫn.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

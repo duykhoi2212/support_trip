@@ -21,6 +21,8 @@ import {
   reportIssueSchema,
 } from './schema.js';
 import { z } from 'zod';
+import { calculateWeeklyCancellationRate } from '../../utils/cancellation.js';
+import { getCurrentWeekRangeVN } from '../scheduler/service.js';
 
 export class RequestService {
   /**
@@ -1229,26 +1231,44 @@ export class RequestService {
   }
 
   /**
-   * Lấy lịch sử các yêu cầu đã kết thúc (COMPLETED / CANCELLED / REJECTED) của người dùng
-   * Kèm thông tin chuyến xe, xe, tài xế và thống kê tổng hợp
+   * Lấy lịch sử các yêu cầu đã kết thúc (COMPLETED / CANCELLED / REJECTED / FAILED) của người dùng
+   * Kèm thông tin chuyến xe, xe, tài xế, tỷ lệ hủy tuần hiện tại và thống kê tổng hợp
    */
   static async getUserHistory(
     userId: bigint,
-    query?: { status?: string; type?: string }
+    query?: { status?: string; type?: string; from_date?: string; to_date?: string }
   ) {
     const whereClause: any = {
       user_id: userId,
       status: {
-        in: [request_status.COMPLETED, request_status.CANCELLED, request_status.REJECTED],
+        in: [
+          request_status.COMPLETED,
+          request_status.CANCELLED,
+          request_status.REJECTED,
+          request_status.FAILED,
+        ],
       },
     };
 
-    if (query?.status && ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(query.status)) {
+    if (query?.status && ['COMPLETED', 'CANCELLED', 'REJECTED', 'FAILED'].includes(query.status)) {
       whereClause.status = query.status as request_status;
     }
 
     if (query?.type && ['RIDE', 'PACKAGE'].includes(query.type)) {
       whereClause.type = query.type as any;
+    }
+
+    if (query?.from_date || query?.to_date) {
+      whereClause.trip = whereClause.trip || {};
+      whereClause.trip.departure_time = {};
+      if (query.from_date) {
+        whereClause.trip.departure_time.gte = new Date(query.from_date);
+      }
+      if (query.to_date) {
+        const toD = new Date(query.to_date);
+        toD.setHours(23, 59, 59, 999);
+        whereClause.trip.departure_time.lte = toD;
+      }
     }
 
     const requests = await prisma.transportRequest.findMany({
@@ -1276,7 +1296,14 @@ export class RequestService {
     const allUserFinishedRequests = await prisma.transportRequest.findMany({
       where: {
         user_id: userId,
-        status: { in: [request_status.COMPLETED, request_status.CANCELLED, request_status.REJECTED] },
+        status: {
+          in: [
+            request_status.COMPLETED,
+            request_status.CANCELLED,
+            request_status.REJECTED,
+            request_status.FAILED,
+          ],
+        },
       },
     });
 
@@ -1296,6 +1323,58 @@ export class RequestService {
         }
       }
     }
+
+    // Tính toán tỷ lệ hủy tuần hiện tại (CS-02) và lịch sử vi phạm
+    const currentWeek = getCurrentWeekRangeVN();
+    const currentWeekRequests = await prisma.transportRequest.findMany({
+      where: {
+        user_id: userId,
+        trip: {
+          departure_time: {
+            gte: currentWeek.weekStart,
+            lte: currentWeek.weekEnd,
+          },
+        },
+      },
+    });
+
+    let weekConfirmed = 0;
+    let weekCancelled = 0;
+
+    for (const r of currentWeekRequests) {
+      if (r.cancelled_by === actor_type.DRIVER) continue;
+      if (
+        r.status === request_status.PENDING ||
+        r.status === request_status.REJECTED ||
+        r.status === request_status.EXPIRED
+      ) {
+        continue;
+      }
+
+      weekConfirmed++;
+      if (
+        r.status === request_status.CANCELLED &&
+        r.cancelled_by === actor_type.USER &&
+        r.counts_toward_cancel_rate
+      ) {
+        weekCancelled++;
+      } else if (
+        r.status === request_status.FAILED &&
+        r.fail_reason_code &&
+        ([fail_reason_code.WRONG_INFO, fail_reason_code.UNREACHABLE, fail_reason_code.ABSENT] as fail_reason_code[]).includes(
+          r.fail_reason_code
+        )
+      ) {
+        weekCancelled++;
+      }
+    }
+
+    const cancelRateResult = calculateWeeklyCancellationRate(weekConfirmed, weekCancelled);
+
+    // Đếm tổng số vi phạm trong quá khứ của người dùng
+    const totalViolations = await prisma.violation.count({
+      where: { user_id: userId },
+    });
 
     return {
       requests: requests.map((r) => ({
@@ -1327,6 +1406,13 @@ export class RequestService {
         total_rides: totalRides,
         total_packages: totalPackages,
         total_fuel_shared: Math.round(totalFuelShared),
+        cancellation: {
+          week_confirmed: weekConfirmed,
+          week_cancelled: weekCancelled,
+          week_rate: cancelRateResult.rate,
+          is_violation: cancelRateResult.isViolation,
+          total_violations: totalViolations,
+        },
       },
     };
   }

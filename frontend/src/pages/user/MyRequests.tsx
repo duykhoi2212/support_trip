@@ -121,6 +121,13 @@ export const MyRequests: React.FC = () => {
             Đã hủy
           </span>
         );
+      case 'FAILED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+            <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-600" />
+            Bị hủy do sự cố
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
@@ -137,6 +144,7 @@ export const MyRequests: React.FC = () => {
     { value: 'COMPLETED', label: 'Đã hoàn thành' },
     { value: 'REJECTED', label: 'Bị từ chối' },
     { value: 'CANCELLED', label: 'Đã hủy' },
+    { value: 'FAILED', label: 'Bị hủy do sự cố' },
   ];
 
   return (
@@ -386,6 +394,22 @@ export const MyRequests: React.FC = () => {
                   {req.status === 'CANCELLED' && req.cancel_reason && (
                     <div className="p-3 rounded-2xl bg-slate-100 text-xs text-slate-700">
                       <strong>Lý do hủy:</strong> {req.cancel_reason}
+                    </div>
+                  )}
+                  {req.status === 'FAILED' && (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                      <div className="font-bold flex items-center text-rose-800">
+                        <AlertTriangle className="w-4 h-4 mr-1.5 text-rose-600 flex-shrink-0" />
+                        <span>Chuyến đi bị hủy do sự cố:</span>
+                      </div>
+                      <p className="text-rose-800 font-medium">
+                        {req.cancel_reason || (req.fail_reason_code === 'ABSENT' ? 'Tài xế báo bạn không có mặt tại điểm hẹn lúc khởi hành.' : 'Chuyến đi gặp sự cố.')}
+                      </p>
+                      {req.counts_toward_cancel_rate && (
+                        <p className="text-[11px] text-rose-600/90 italic">
+                          * Sự cố này tính vào tỷ lệ hủy tuần của bạn do vắng mặt / không liên lạc được.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

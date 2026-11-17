@@ -68,6 +68,19 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-17 (Chặng 1: Chỉ Số Tỷ Lệ Hủy CS-02, Truy Vết Yêu Cầu FAILED Khách Vắng Mặt & Bộ Lọc Ngày Linh Hoạt)**:
+  - **Khắc phục luồng Báo sự cố vắng mặt phía Khách hàng**:
+    - Backend: Mở rộng `RequestService.getUserHistory` truy vấn cả trạng thái `request_status.FAILED` (trước đây chỉ lọc `[COMPLETED, CANCELLED, REJECTED]`, khiến hành khách bị tài xế báo vắng mặt biến mất khỏi lịch sử).
+    - Frontend: Hiển thị huy hiệu và khối cảnh báo đỏ `AlertTriangle` cho yêu cầu `FAILED` ("Bị hủy do sự cố (Vắng mặt / Không liên lạc được)") trên cả `MyRequests.tsx` và `UserHistory.tsx`, nêu rõ lý do và nút khiếu nại / gửi báo cáo sự cố lên Admin.
+  - **Bộ lọc ngày trong Lịch sử Chuyến đi & Chuyến xe**:
+    - Backend: Bổ sung bộ lọc `from_date` và `to_date` trong `getUserHistory` (lọc theo ngày xuất phát `trip.departure_time`).
+    - Frontend: Tích hợp chọn dải ngày kèm 4 nút chọn nhanh ("Hôm nay", "7 ngày qua", "30 ngày qua", "Xóa lọc") trên cả `UserHistory.tsx` (Người dùng) và `DriverHistory.tsx` (Tài xế).
+  - **Hiển thị Tỷ lệ hủy chuyến minh bạch (CS-02)**:
+    - Backend: Tích hợp hàm `getCurrentWeekRangeVN()` và thuật toán `calculateWeeklyCancellationRate()` vào `getUserHistory` trả về thống kê tuần hiện tại (T2–CN, `Asia/Ho_Chi_Minh`): `{ week_confirmed, week_cancelled, week_rate, is_violation, total_violations }`.
+    - Frontend: Bổ sung thẻ KPI thứ 4 trên Dashboard `UserHistory.tsx` hiển thị tỷ lệ hủy chuyến hiện tại, số chuyến xác nhận vs hủy, cùng huy hiệu an toàn động: 🟢 An toàn ($< 3\%$), 🟡 Cảnh báo ($3\% - 5\%$), 🔴 Nguy cơ vi phạm ($> 5\%$).
+  - **Kiểm thử & Chất lượng**:
+    - Mở rộng `backend/tests/ai-search-history.test.ts` kiểm thử đầy đủ chỉ số `cancellation`, truy xuất `FAILED` và bộ lọc `from_date`/`to_date`.
+    - Toàn bộ **79/79 Vitest tests passed 100%** trên CSDL Neon Cloud. Build Frontend & Backend đạt **0 lỗi**.
 - **2026-11-16 (Giai đoạn 6 - CHẶNG 4: NÂNG CẤP ĐIỀU HÀNH CHUYẾN XE, XÁC NHẬN ĐÓN TRƯỚC KHỞI HÀNH, HÀNH ĐỘNG HÀNG LOẠT, BÁO SỰ CỐ KHÁCH VẮNG MẶT & HỦY KHẨN CẤP)**:
   - **Tách Cổng Quản Trị Viên Riêng Biệt (`/admin/login`)**:
     - Xây dựng trang đăng nhập Admin độc lập với phong cách quản trị cao cấp, mặc định role `ADMIN` và gợi ý thông tin mẫu 1 chạm (`admin@example.com` / `Password@123`).

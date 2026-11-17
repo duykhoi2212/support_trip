@@ -75,6 +75,8 @@ export class RequestController {
       const query = {
         status: req.query.status as string | undefined,
         type: req.query.type as string | undefined,
+        from_date: req.query.from_date as string | undefined,
+        to_date: req.query.to_date as string | undefined,
       };
       const result = await RequestService.getUserHistory(userId, query);
       res.json({

@@ -191,17 +191,58 @@ describe('Kiểm thử Chặng 2: Tìm kiếm Gemini AI (US-02), CS-05 Fallback 
       expect(history.stats.total_fuel_received).toBeGreaterThanOrEqual(60000);
     });
 
-    it('Người dùng xem lịch sử: Trả về danh sách yêu cầu COMPLETED kèm thông tin tài xế và xe', async () => {
+    it('Người dùng xem lịch sử: Trả về danh sách yêu cầu COMPLETED, FAILED kèm chỉ số cancellation stats', async () => {
+      // Tạo thêm 1 request trạng thái FAILED do khách vắng mặt để kiểm tra
+      const failedCode = `REQ-FL-${Date.now().toString().slice(-8)}`;
+      const failedReq = await prisma.transportRequest.create({
+        data: {
+          code: failedCode,
+          user_id: testUserId,
+          trip_id: testTripId,
+          type: 'RIDE',
+          status: 'FAILED',
+          fail_reason_code: 'ABSENT',
+          cancel_reason: 'Khách hàng không có mặt tại điểm đón',
+          counts_toward_cancel_rate: true,
+          passenger_count: 1,
+          pickup_name: 'Điểm đón vắng mặt',
+          pickup_lat: 16.0544,
+          pickup_lng: 108.2022,
+          dropoff_name: 'Hội An',
+          dropoff_lat: 15.8801,
+          dropoff_lng: 108.3380,
+        },
+      });
+
       const history = await RequestService.getUserHistory(testUserId);
 
-      expect(history.requests.length).toBeGreaterThanOrEqual(1);
+      expect(history.requests.length).toBeGreaterThanOrEqual(2);
       expect(history.stats.total_rides).toBeGreaterThanOrEqual(2);
       expect(history.stats.total_fuel_shared).toBeGreaterThanOrEqual(60000);
 
-      const firstReq = history.requests[0];
-      expect(firstReq.trip).toBeDefined();
-      expect(firstReq.trip?.driver?.full_name).toBe('Tài xế Lịch Sử Test');
-      expect(firstReq.trip?.vehicle?.plate_number).toBe(testPlateNumber);
+      // Kiểm tra cấu trúc chỉ số hủy chuyến tuần
+      expect(history.stats.cancellation).toBeDefined();
+      expect(typeof history.stats.cancellation.week_rate).toBe('number');
+      expect(typeof history.stats.cancellation.week_confirmed).toBe('number');
+      expect(typeof history.stats.cancellation.week_cancelled).toBe('number');
+      expect(typeof history.stats.cancellation.is_violation).toBe('boolean');
+
+      // Kiểm tra request FAILED có trong danh sách
+      const foundFailed = history.requests.find((r) => r.id.toString() === failedReq.id.toString());
+      expect(foundFailed).toBeDefined();
+      expect(foundFailed?.status).toBe('FAILED');
+      expect(foundFailed?.fail_reason_code).toBe('ABSENT');
+
+      // Kiểm tra bộ lọc ngày from_date / to_date
+      const filteredFuture = await RequestService.getUserHistory(testUserId, {
+        from_date: '2030-01-01',
+      });
+      expect(filteredFuture.requests.length).toBe(0);
+
+      const firstReq = history.requests.find((r) => r.status === 'COMPLETED');
+      expect(firstReq?.trip).toBeDefined();
+      expect(firstReq?.trip?.driver?.full_name).toBe('Tài xế Lịch Sử Test');
+      expect(firstReq?.trip?.vehicle?.plate_number).toBe(testPlateNumber);
     });
   });
 

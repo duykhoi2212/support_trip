@@ -142,6 +142,8 @@ export const requestService = {
   async getUserHistory(query?: {
     status?: string;
     type?: string;
+    from_date?: string;
+    to_date?: string;
   }): Promise<UserHistoryResponse> {
     const res = await api.get<ApiSuccessResponse<UserHistoryResponse>>('/requests/history', {
       params: query,
