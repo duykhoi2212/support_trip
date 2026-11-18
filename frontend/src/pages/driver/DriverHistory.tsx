@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { tripService } from '../../services/tripService';
 import { Trip, DriverHistoryStats, TransportRequest } from '../../types';
+import { formatLocalYMD } from '../../lib/formatters';
 
 export const DriverHistory: React.FC = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -32,14 +33,22 @@ export const DriverHistory: React.FC = () => {
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (override?: {
+    status?: 'ALL' | 'COMPLETED' | 'CANCELLED';
+    from_date?: string;
+    to_date?: string;
+  }) => {
     try {
       setLoading(true);
       setError(null);
+      const effStatus = override?.status !== undefined ? override.status : statusFilter;
+      const effFrom = override?.from_date !== undefined ? override.from_date : fromDate;
+      const effTo = override?.to_date !== undefined ? override.to_date : toDate;
+
       const query: any = {};
-      if (statusFilter !== 'ALL') query.status = statusFilter;
-      if (fromDate) query.from_date = fromDate;
-      if (toDate) query.to_date = toDate;
+      if (effStatus !== 'ALL') query.status = effStatus;
+      if (effFrom) query.from_date = effFrom;
+      if (effTo) query.to_date = effTo;
 
       const res = await tripService.getDriverHistory(query);
       setTrips(res.trips);
@@ -64,31 +73,32 @@ export const DriverHistory: React.FC = () => {
     setStatusFilter('ALL');
     setFromDate('');
     setToDate('');
-    setTimeout(fetchHistory, 50);
+    fetchHistory({ status: 'ALL', from_date: '', to_date: '' });
   };
 
   const setQuickDate = (type: 'today' | '7days' | 'month' | 'clear') => {
     const today = new Date();
-    const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+    let nextFrom = '';
+    let nextTo = '';
 
     if (type === 'today') {
-      const dStr = formatYMD(today);
-      setFromDate(dStr);
-      setToDate(dStr);
+      nextFrom = formatLocalYMD(today);
+      nextTo = formatLocalYMD(today);
     } else if (type === '7days') {
-      const past = new Date();
-      past.setDate(today.getDate() - 7);
-      setFromDate(formatYMD(past));
-      setToDate(formatYMD(today));
+      const past = new Date(today);
+      past.setDate(today.getDate() - 6);
+      nextFrom = formatLocalYMD(past);
+      nextTo = formatLocalYMD(today);
     } else if (type === 'month') {
-      const past = new Date();
-      past.setMonth(today.getMonth() - 1);
-      setFromDate(formatYMD(past));
-      setToDate(formatYMD(today));
-    } else {
-      setFromDate('');
-      setToDate('');
+      const past = new Date(today);
+      past.setDate(today.getDate() - 29);
+      nextFrom = formatLocalYMD(past);
+      nextTo = formatLocalYMD(today);
     }
+
+    setFromDate(nextFrom);
+    setToDate(nextTo);
+    fetchHistory({ from_date: nextFrom, to_date: nextTo });
   };
 
   return (
@@ -96,10 +106,10 @@ export const DriverHistory: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Lịch sử Chuyến xe của Tài xế
+          Lịch sử chuyến xe
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          Theo dõi toàn bộ các chuyến xe đã hoàn thành hoặc đã hủy, thống kê lượt phục vụ và chi phí nhiên liệu/sạc chia sẻ đã nhận.
+          Theo dõi toàn bộ các chuyến xe đã hoàn thành hoặc đã hủy, lượt phục vụ và mức ước tính chia sẻ chi phí nhiên liệu/sạc.
         </p>
       </div>
 

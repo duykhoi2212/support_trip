@@ -1,7 +1,11 @@
 import { api } from './api';
-import { ApiSuccessResponse, Trip, AiSearchResult, DriverHistoryResponse } from '../types';
+import { ApiSuccessResponse, Trip, AiSearchResult, DriverDashboardData, DriverHistoryResponse } from '../types';
 
 export const tripService = {
+  async getDriverDashboard(): Promise<DriverDashboardData> {
+    const res = await api.get<ApiSuccessResponse<DriverDashboardData>>('/trips/driver/dashboard');
+    return res.data.data;
+  },
   async getMyTrips(status?: string): Promise<Trip[]> {
     const params = status ? { status } : {};
     const res = await api.get<ApiSuccessResponse<Trip[]>>('/trips/mine', { params });

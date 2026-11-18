@@ -45,11 +45,13 @@ const fileFilter = (
   }
 };
 
-// Giới hạn dung lượng tối đa 5MB theo quy định
+// Giới hạn dung lượng tối đa theo cấu hình môi trường (mặc định 5MB)
+const maxFileSizeBytes = (config.MAX_FILE_SIZE_MB || 5) * 1024 * 1024;
+
 export const uploadImage = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB
+    fileSize: maxFileSizeBytes,
   },
 });

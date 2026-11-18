@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   Calendar,
   Users,
@@ -100,7 +101,7 @@ export const UserHistory: React.FC = () => {
     e.preventDefault();
     if (!selectedIncidentReq) return;
     if (!incidentDesc.trim() || incidentDesc.trim().length < 10) {
-      alert('Vui lòng nhập mô tả sự cố ít nhất 10 ký tự.');
+      toast.error('Vui lòng nhập mô tả sự cố ít nhất 10 ký tự.');
       return;
     }
 
@@ -112,14 +113,15 @@ export const UserHistory: React.FC = () => {
         title: incidentTitle,
         description: incidentDesc.trim(),
       });
-      setIncidentSuccessMsg('Báo cáo sự cố của bạn đã được gửi thành công tới Quản trị viên (Admin). Chúng tôi sẽ xác minh và liên hệ sớm!');
+      setIncidentSuccessMsg('Báo cáo sự cố của bạn đã được gửi thành công tới Quản trị viên. Chúng tôi sẽ xác minh và liên hệ sớm!');
+      toast.success('Đã gửi báo cáo sự cố thành công.');
       setIncidentDesc('');
       setTimeout(() => {
         setIncidentSuccessMsg(null);
         setSelectedIncidentReq(null);
       }, 3000);
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || err.message || 'Không thể gửi báo cáo sự cố.');
+      toast.error(err.response?.data?.error?.message || err.message || 'Không thể gửi báo cáo sự cố.');
     } finally {
       setReporting(false);
     }
@@ -130,10 +132,10 @@ export const UserHistory: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Lịch sử Chuyến đi của Bạn
+          Lịch sử chuyến đi
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          Xem lại toàn bộ các chuyến đi nhờ và kiện hàng đã hoàn thành, khoản chi phí hỗ trợ nhiên liệu/sạc đã đóng góp tự nguyện và gửi báo cáo sự cố khi cần thiết.
+          Xem lại các chuyến đi nhờ và kiện hàng đã hoàn thành, mức ước tính chia sẻ chi phí nhiên liệu/sạc và gửi báo cáo sự cố khi cần.
         </p>
       </div>
 

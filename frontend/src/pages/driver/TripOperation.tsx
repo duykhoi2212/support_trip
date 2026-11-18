@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import {
   Phone,
   AlertCircle,
@@ -53,6 +55,16 @@ export const TripOperation: React.FC = () => {
   // Modal Báo cáo sự cố từng yêu cầu (Khách vắng mặt / không nghe máy)
   const [reportModalReq, setReportModalReq] = useState<TransportRequest | null>(null);
   const [reportReasonCode, setReportReasonCode] = useState<string>('ABSENT');
+
+  // Hộp thoại xác nhận chuẩn hóa thay thế window.confirm()
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
   const [reportNote, setReportNote] = useState<string>('');
   const [submittingReport, setSubmittingReport] = useState<boolean>(false);
 
@@ -107,7 +119,7 @@ export const TripOperation: React.FC = () => {
     if (!rejectModalReq) return;
 
     if (!rejectReason.trim() || rejectReason.trim().length < 5) {
-      alert('Vui lòng nhập lý do từ chối (ít nhất 5 ký tự).');
+      toast.error('Vui lòng nhập lý do từ chối (ít nhất 5 ký tự).');
       return;
     }
 
@@ -115,10 +127,11 @@ export const TripOperation: React.FC = () => {
     try {
       await requestService.rejectRequest(rejectModalReq.id, rejectReason.trim());
       setMessage({ type: 'success', text: `Đã từ chối yêu cầu ${rejectModalReq.code}.` });
+      toast.success(`Đã từ chối yêu cầu ${rejectModalReq.code}.`);
       setRejectModalReq(null);
       fetchTripAndRequests();
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || err.message || 'Lỗi khi từ chối yêu cầu.');
+      toast.error(err.response?.data?.error?.message || err.message || 'Lỗi khi từ chối yêu cầu.');
     } finally {
       setRejecting(false);
     }
@@ -146,79 +159,105 @@ export const TripOperation: React.FC = () => {
   };
 
   // Bắt đầu chuyến xe
-  const handleStartTrip = async () => {
+  const handleStartTrip = () => {
     if (!trip) return;
-    if (!confirm(`Bạn có chắc chắn muốn bắt đầu chuyến xe ${trip.code}? Hành khách sẽ nhận được thông báo.`)) return;
-
-    try {
-      await requestService.startTrip(trip.id);
-      setMessage({ type: 'success', text: `Chuyến xe ${trip.code} đã chính thức bắt đầu!` });
-      fetchTripAndRequests();
-    } catch (err: any) {
-      setMessage({
-        type: 'error',
-        text: err.response?.data?.error?.message || err.message || 'Không thể bắt đầu chuyến xe.',
-      });
-    }
+    setConfirmState({
+      open: true,
+      title: `Bắt đầu chuyến xe ${trip.code}?`,
+      description: 'Hành khách sẽ nhận được thông báo khởi hành và mức ước tính chia sẻ nhiên liệu sẽ được chốt theo số người thực tế trên xe.',
+      confirmLabel: 'Bắt đầu hành trình',
+      onConfirm: async () => {
+        try {
+          await requestService.startTrip(trip.id);
+          setMessage({ type: 'success', text: `Chuyến xe ${trip.code} đã chính thức bắt đầu!` });
+          toast.success(`Chuyến xe ${trip.code} đã chính thức bắt đầu!`);
+          fetchTripAndRequests();
+        } catch (err: any) {
+          const msg = err.response?.data?.error?.message || err.message || 'Không thể bắt đầu chuyến xe.';
+          setMessage({ type: 'error', text: msg });
+          toast.error(msg);
+        }
+      },
+    });
   };
 
   // Kết thúc chuyến xe
-  const handleCompleteTrip = async () => {
+  const handleCompleteTrip = () => {
     if (!trip) return;
-    if (!confirm(`Xác nhận hoàn thành toàn bộ chuyến xe ${trip.code}?`)) return;
-
-    try {
-      await requestService.completeTrip(trip.id);
-      setMessage({ type: 'success', text: `Chúc mừng bạn đã hoàn thành chuyến xe ${trip.code} an toàn!` });
-      fetchTripAndRequests();
-    } catch (err: any) {
-      setMessage({
-        type: 'error',
-        text: err.response?.data?.error?.message || err.message || 'Không thể kết thúc chuyến xe.',
-      });
-    }
+    setConfirmState({
+      open: true,
+      title: `Hoàn thành chuyến xe ${trip.code}?`,
+      description: 'Xác nhận đã hoàn tất toàn bộ chuyến xe an toàn và đóng điều hành chuyến này.',
+      confirmLabel: 'Xác nhận hoàn thành',
+      onConfirm: async () => {
+        try {
+          await requestService.completeTrip(trip.id);
+          setMessage({ type: 'success', text: `Chúc mừng bạn đã hoàn thành chuyến xe ${trip.code} an toàn!` });
+          toast.success(`Đã hoàn thành chuyến xe ${trip.code}!`);
+          fetchTripAndRequests();
+        } catch (err: any) {
+          const msg = err.response?.data?.error?.message || err.message || 'Không thể kết thúc chuyến xe.';
+          setMessage({ type: 'error', text: msg });
+          toast.error(msg);
+        }
+      },
+    });
   };
 
   // Đón đủ tất cả khách và nhận đủ tất cả kiện hàng lên xe (Batch Pickup)
-  const handlePickupAll = async () => {
+  const handlePickupAll = () => {
     if (!trip) return;
-    if (!confirm('Xác nhận đã đón đầy đủ tất cả hành khách và nhận đủ kiện hàng lên xe?')) return;
-
-    setBatchLoading(true);
-    setMessage(null);
-    try {
-      const res = await requestService.pickupAll(trip.id);
-      setMessage({ type: 'success', text: res.message || 'Đã xác nhận đón toàn bộ khách và hàng lên xe thành công.' });
-      fetchTripAndRequests();
-    } catch (err: any) {
-      setMessage({
-        type: 'error',
-        text: err.response?.data?.error?.message || err.message || 'Không thể xác nhận đón hàng loạt.',
-      });
-    } finally {
-      setBatchLoading(false);
-    }
+    setConfirmState({
+      open: true,
+      title: 'Xác nhận đón đủ khách & hàng?',
+      description: 'Toàn bộ hành khách và kiện hàng đã duyệt trên chuyến này sẽ được đánh dấu là đã lên xe.',
+      confirmLabel: 'Xác nhận đã đón đủ',
+      onConfirm: async () => {
+        setBatchLoading(true);
+        setMessage(null);
+        try {
+          const res = await requestService.pickupAll(trip.id);
+          const msg = res.message || 'Đã xác nhận đón toàn bộ khách và hàng lên xe thành công.';
+          setMessage({ type: 'success', text: msg });
+          toast.success(msg);
+          fetchTripAndRequests();
+        } catch (err: any) {
+          const msg = err.response?.data?.error?.message || err.message || 'Không thể xác nhận đón hàng loạt.';
+          setMessage({ type: 'error', text: msg });
+          toast.error(msg);
+        } finally {
+          setBatchLoading(false);
+        }
+      },
+    });
   };
 
   // Trả đủ tất cả khách và giao đủ tất cả kiện hàng (Batch Dropoff)
-  const handleDropoffAll = async () => {
+  const handleDropoffAll = () => {
     if (!trip) return;
-    if (!confirm('Xác nhận đã trả đầy đủ tất cả hành khách xuống xe và giao toàn bộ kiện hàng an toàn?')) return;
-
-    setBatchLoading(true);
-    setMessage(null);
-    try {
-      const res = await requestService.dropoffAll(trip.id);
-      setMessage({ type: 'success', text: res.message || 'Đã xác nhận trả toàn bộ khách và giao toàn bộ hàng thành công.' });
-      fetchTripAndRequests();
-    } catch (err: any) {
-      setMessage({
-        type: 'error',
-        text: err.response?.data?.error?.message || err.message || 'Không thể xác nhận trả hàng loạt.',
-      });
-    } finally {
-      setBatchLoading(false);
-    }
+    setConfirmState({
+      open: true,
+      title: 'Xác nhận trả đủ khách & giao đủ hàng?',
+      description: 'Toàn bộ hành khách và kiện hàng trên xe sẽ được đánh dấu đã trả/giao thành công.',
+      confirmLabel: 'Xác nhận đã trả đủ',
+      onConfirm: async () => {
+        setBatchLoading(true);
+        setMessage(null);
+        try {
+          const res = await requestService.dropoffAll(trip.id);
+          const msg = res.message || 'Đã xác nhận trả toàn bộ khách và giao toàn bộ hàng thành công.';
+          setMessage({ type: 'success', text: msg });
+          toast.success(msg);
+          fetchTripAndRequests();
+        } catch (err: any) {
+          const msg = err.response?.data?.error?.message || err.message || 'Không thể xác nhận trả hàng loạt.';
+          setMessage({ type: 'error', text: msg });
+          toast.error(msg);
+        } finally {
+          setBatchLoading(false);
+        }
+      },
+    });
   };
 
   // Báo cáo sự cố từng yêu cầu
@@ -231,10 +270,11 @@ export const TripOperation: React.FC = () => {
         note: reportNote.trim() || undefined,
       });
       setMessage({ type: 'success', text: res.message });
+      toast.success(res.message);
       setReportModalReq(null);
       fetchTripAndRequests();
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || err.message || 'Lỗi khi báo cáo sự cố yêu cầu.');
+      toast.error(err.response?.data?.error?.message || err.message || 'Lỗi khi báo cáo sự cố yêu cầu.');
     } finally {
       setSubmittingReport(false);
     }
@@ -244,21 +284,20 @@ export const TripOperation: React.FC = () => {
   const handleConfirmEmergencyCancel = async () => {
     if (!trip) return;
     if (emergencyCancelReason.trim().length < 10) {
-      alert('Vui lòng nhập lý do sự cố chi tiết (tối thiểu 10 ký tự).');
+      toast.error('Vui lòng nhập lý do sự cố chi tiết (tối thiểu 10 ký tự).');
       return;
     }
 
     setCancellingEmergency(true);
     try {
       await tripService.cancelTripInProgress(trip.id, emergencyCancelReason.trim());
-      setMessage({
-        type: 'success',
-        text: `Chuyến xe ${trip.code} đã được hủy khẩn cấp do sự cố. Ban quản trị và hành khách đã được thông báo.`,
-      });
+      const msg = `Chuyến xe ${trip.code} đã được hủy khẩn cấp do sự cố. Ban quản trị và hành khách đã được thông báo.`;
+      setMessage({ type: 'success', text: msg });
+      toast.success(msg);
       setShowEmergencyCancelModal(false);
       fetchTripAndRequests();
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || err.message || 'Không thể hủy chuyến xe.');
+      toast.error(err.response?.data?.error?.message || err.message || 'Không thể hủy chuyến xe.');
     } finally {
       setCancellingEmergency(false);
     }
@@ -1368,6 +1407,29 @@ export const TripOperation: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Hộp thoại xác nhận chuẩn hóa thay thế window.confirm() */}
+      {confirmState && (
+        <ConfirmDialog
+          open={confirmState.open}
+          onOpenChange={(open) => {
+            if (!open && !confirmBusy) setConfirmState(null);
+          }}
+          title={confirmState.title}
+          description={confirmState.description}
+          confirmLabel={confirmState.confirmLabel}
+          loading={confirmBusy}
+          onConfirm={async () => {
+            setConfirmBusy(true);
+            try {
+              await confirmState.onConfirm();
+            } finally {
+              setConfirmBusy(false);
+              setConfirmState(null);
+            }
+          }}
+        />
       )}
     </div>
   );

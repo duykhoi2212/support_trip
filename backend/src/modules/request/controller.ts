@@ -253,6 +253,22 @@ export class RequestController {
   }
 
   /**
+   * Dashboard Tổng quan Người dùng (USER)
+   */
+  static async getUserDashboard(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const result = await RequestService.getUserDashboard(userId);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Tài xế báo cáo sự cố từng yêu cầu (Khách vắng mặt, không liên lạc được...)
    */
   static async reportIssue(req: AuthenticatedRequest, res: Response, next: NextFunction) {

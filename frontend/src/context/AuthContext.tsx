@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { User } from '../types';
 import { authService } from '../services/authService';
 
@@ -18,6 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const initializedRef = useRef(false);
 
   const logout = () => {
     localStorage.removeItem('auth_token');
@@ -46,9 +48,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Lắng nghe sự kiện buộc đăng xuất khi phiên hết hạn hoặc bị khóa tài khoản
   useEffect(() => {
+    const handleForceLogout = (event: Event) => {
+      const customEvent = event as CustomEvent<{ reason?: string }>;
+      logout();
+      if (customEvent.detail?.reason) {
+        toast.error(customEvent.detail.reason);
+      }
+    };
+    window.addEventListener('gox:force-logout', handleForceLogout);
+    return () => window.removeEventListener('gox:force-logout', handleForceLogout);
+  }, []);
+
+  // Chỉ gọi getProfile một lần khi khởi tạo ứng dụng nếu đã lưu token từ trước
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     const initAuth = async () => {
-      if (token) {
+      const savedToken = localStorage.getItem('auth_token');
+      if (savedToken) {
         try {
           const profile = await authService.getProfile();
           setUser(profile);
@@ -61,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
-  }, [token]);
+  }, []);
 
   return (
     <AuthContext.Provider

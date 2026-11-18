@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
-  Clock,
   ArrowRight,
   Phone,
   Mail,
@@ -21,6 +20,12 @@ import {
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { AdminIncident, AdminTripDetail, IncidentStatus } from '../../types';
+import {
+  IncidentStatusBadge,
+  RequestStatusBadge,
+  TripStatusBadge,
+} from '../../components/common/StatusBadge';
+import { getFuelTypeLabel, getRoleLabel } from '../../lib/formatters';
 
 export const IncidentManagement: React.FC = () => {
   const [incidents, setIncidents] = useState<AdminIncident[]>([]);
@@ -155,34 +160,7 @@ export const IncidentManagement: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: IncidentStatus) => {
-    switch (status) {
-      case 'NOT_RECEIVED':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            <Clock className="w-3 h-3 mr-1" /> Chưa tiếp nhận
-          </span>
-        );
-      case 'RECEIVED':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Đã tiếp nhận
-          </span>
-        );
-      case 'PROCESSING':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Đang xử lý
-          </span>
-        );
-      case 'RESOLVED':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Đã giải quyết
-          </span>
-        );
-    }
-  };
+  const getStatusBadge = (status: IncidentStatus) => <IncidentStatusBadge status={status} />;
 
   // Steps definition for visual timeline
   const statusSteps: IncidentStatus[] = ['NOT_RECEIVED', 'RECEIVED', 'PROCESSING', 'RESOLVED'];
@@ -202,11 +180,11 @@ export const IncidentManagement: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center">
-              <AlertTriangle className="w-7 h-7 mr-2 text-amber-600" />
-              Tiếp nhận & Xử lý Sự cố (AD-02)
+              <AlertTriangle className="w-6 h-6 mr-2 text-amber-600" />
+              Quản lý sự cố
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Quy trình 4 bước chuẩn mực: Chưa tiếp nhận ➔ Đã tiếp nhận ➔ Đang xử lý ➔ Đã giải quyết. Tự động gửi thông báo cho các bên.
+              Tiếp nhận và xử lý sự cố theo 4 bước tuần tự, tự động gửi thông báo tiến độ cho các bên.
             </p>
           </div>
           <div className="text-sm text-slate-600 bg-slate-100 px-4 py-2 rounded-xl font-medium">
@@ -364,7 +342,7 @@ export const IncidentManagement: React.FC = () => {
                     {/* Thông tin chính sự cố */}
                     <div className="space-y-3 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-slate-400">INCIDENT-#{inc.id}</span>
+                        <span className="text-xs font-bold text-slate-500">Sự cố #{inc.id}</span>
                         {getStatusBadge(inc.status)}
                         <span className="text-xs text-slate-400">
                           • Ngày gửi: {new Date(inc.created_at).toLocaleString('vi-VN')}
@@ -383,7 +361,7 @@ export const IncidentManagement: React.FC = () => {
                           <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
                           <div className="truncate">
                             <span className="font-semibold text-slate-800">{inc.reporter.full_name}</span>
-                            <span className="text-slate-400 ml-1">({inc.reporter.role})</span>
+                            <span className="text-slate-500 ml-1">({getRoleLabel(inc.reporter.role)})</span>
                             <div className="text-slate-500 text-[11px] flex items-center gap-2 mt-0.5">
                               <span className="flex items-center">
                                 <Phone className="w-3 h-3 mr-0.5" /> {inc.reporter.phone}
@@ -674,9 +652,7 @@ export const IncidentManagement: React.FC = () => {
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-sm font-extrabold text-emerald-800">{tripDetail.code}</span>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-800">
-                        Trạng thái: {tripDetail.status}
-                      </span>
+                      <TripStatusBadge status={tripDetail.status} />
                     </div>
 
                     <div className="space-y-1.5 text-sm">
@@ -750,7 +726,7 @@ export const IncidentManagement: React.FC = () => {
                         {tripDetail.vehicle.cargo_max_kg}kg
                       </div>
                       <div className="text-slate-500">
-                        Nhiên liệu: {tripDetail.vehicle.fuel_type} ({tripDetail.vehicle.fuel_consumption}/100km)
+                        Nhiên liệu: {getFuelTypeLabel(tripDetail.vehicle.fuel_type)} ({tripDetail.vehicle.fuel_consumption}/100km)
                       </div>
                     </div>
                   </div>
@@ -787,17 +763,7 @@ export const IncidentManagement: React.FC = () => {
                                 <span className="font-bold text-slate-900">{req.user.full_name}</span>
                                 <span className="text-slate-500">({req.user.phone})</span>
                               </div>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                  req.status === 'COMPLETED'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : req.status === 'FAILED' || req.status === 'CANCELLED'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {req.status}
-                              </span>
+                              <RequestStatusBadge status={req.status} />
                             </div>
 
                             <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-600">

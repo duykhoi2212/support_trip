@@ -232,7 +232,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           <strong style="color: #059669; font-size: 14px;">Lộ trình di chuyển GoX</strong>
           ${distanceKm ? `<div style="margin-top: 4px;">Quãng đường: <b style="color: #0f172a;">${distanceKm} km</b></div>` : ''}
           ${durationMin ? `<div>Thời gian dự kiến: <b style="color: #0f172a;">${Math.floor(durationMin / 60)}h ${Math.round(durationMin % 60)}m</b></div>` : ''}
-          ${majorRoads.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 4px; border-top: 1px solid #e2e8f0; pt: 4px;">Trục đường: ${majorRoads.slice(0, 3).join(' → ')}...</div>` : ''}
+          ${majorRoads.length > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px;">Trục đường: ${majorRoads.slice(0, 3).join(' → ')}...</div>` : ''}
         </div>
       `);
       layerGroup.addLayer(polylineMain);

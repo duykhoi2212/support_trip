@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   Car,
   MapPin,
@@ -102,7 +103,7 @@ export const TripDetails: React.FC = () => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Kích thước ảnh không được vượt quá 5 MB.');
+      toast.error('Kích thước ảnh không được vượt quá 5 MB.');
       return;
     }
 
@@ -163,7 +164,7 @@ export const TripDetails: React.FC = () => {
         await requestService.createPackageRequest(formData);
       }
 
-      alert('Đã gửi yêu cầu tham gia chuyến xe thành công! Vui lòng chờ tài xế duyệt.');
+      toast.success('Đã gửi yêu cầu tham gia chuyến xe thành công! Vui lòng chờ tài xế duyệt.');
       navigate('/user/requests');
     } catch (err: any) {
       setFormError(err.response?.data?.error?.message || err.message || 'Không thể gửi yêu cầu đặt chỗ.');
@@ -476,7 +477,7 @@ export const TripDetails: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-xs text-emerald-900 mt-2.5 pt-2.5 border-t border-emerald-200/60 leading-relaxed">
-                    💡 <strong>Cơ chế chia sẻ tự nguyện:</strong> Khi chuyến xe chưa khởi hành, hệ thống chỉ hiển thị tổng chi phí nhiên liệu/sạc cho chuyến xe đó. Khoản chi phí hỗ trợ của mỗi người chỉ được tính và chốt khi tài xế bấm nút "Bắt đầu hành trình" (chi phí chia đều theo tổng số người tham gia thực tế trên xe; người đi 3 người sẽ tính x3 so với gửi đồ).
+                    💡 <strong>Lưu ý chia sẻ chi phí nhiên liệu:</strong> Khi chuyến xe chưa khởi hành, hệ thống chỉ hiển thị tổng chi phí nhiên liệu/sạc ước tính cho cả chuyến. Mức chia sẻ tham khảo sẽ được tính khi tài xế bấm <strong>"Bắt đầu hành trình"</strong> (hai bên tự thỏa thuận trực tiếp, không thu phí qua hệ thống).
                   </p>
                 </div>
               )
@@ -511,7 +512,7 @@ export const TripDetails: React.FC = () => {
                 }`}
               >
                 <Package className="w-4 h-4" />
-                <span>Gửi hàng hóa</span>
+                <span>Gửi hàng</span>
               </button>
             </div>
 
@@ -543,7 +544,7 @@ export const TripDetails: React.FC = () => {
                   Bạn đang đăng nhập với tư cách <strong>Tài xế</strong>. Tài xế không sử dụng dịch vụ đi nhờ hoặc gửi hàng như người dùng.
                 </p>
                 <p className="text-slate-600">
-                  Nếu bạn có nhu cầu đi nhờ hoặc gửi đồ, vui lòng đăng xuất và đăng nhập bằng <strong>tài khoản Người dùng</strong> (hoặc đăng ký vai trò Người dùng với cùng Email/SĐT).
+                  Nếu bạn có nhu cầu đi nhờ hoặc gửi hàng, vui lòng đăng xuất và đăng nhập bằng <strong>tài khoản Người dùng</strong> (hoặc đăng ký vai trò Người dùng với cùng Email/SĐT).
                 </p>
                 <div className="pt-1 flex items-center space-x-2">
                   <Link
@@ -562,7 +563,7 @@ export const TripDetails: React.FC = () => {
               <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 text-rose-800 text-xs leading-relaxed text-center space-y-2">
                 <p className="font-bold text-sm text-rose-900">Chuyến xe này đã kín chỗ ngồi (0/{trip.seats_total})</p>
                 <p className="text-slate-600">
-                  Tất cả các ghế đã được tài xế nhận đủ khách. Bạn có thể chuyển sang tab <strong>Gửi hàng hóa</strong> nếu xe còn chỗ cốp.
+                  Tất cả các ghế đã được tài xế nhận đủ khách. Bạn có thể chuyển sang tab <strong>Gửi hàng</strong> nếu xe còn chỗ cốp.
                 </p>
                 {remainingArea > 0 && remainingWeight > 0 && (
                   <button
@@ -570,7 +571,7 @@ export const TripDetails: React.FC = () => {
                     onClick={() => setRequestType('PACKAGE')}
                     className="mt-2 inline-flex items-center px-4 py-2 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition-colors"
                   >
-                    Chuyển sang Gửi hàng hóa
+                    Chuyển sang Gửi hàng
                   </button>
                 )}
               </div>

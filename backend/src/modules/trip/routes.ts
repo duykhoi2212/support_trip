@@ -11,6 +11,7 @@ tripRouter.post('/search/ai', TripController.searchAi);
 tripRouter.get('/search/ai', TripController.searchAi);
 
 // Routes dành cho Tài xế (DRIVER)
+tripRouter.get('/driver/dashboard', authenticateToken, requireRole([user_role.DRIVER]), TripController.getDriverDashboard);
 tripRouter.get('/driver/history', authenticateToken, requireRole([user_role.DRIVER]), TripController.getDriverHistory);
 tripRouter.post('/', authenticateToken, requireRole([user_role.DRIVER]), TripController.create);
 tripRouter.get('/mine', authenticateToken, requireRole([user_role.DRIVER]), TripController.getMyTrips);

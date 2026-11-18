@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import { AdminUser, AdminUserDetail, UserRole, AccountStatus } from '../../types';
+import { AccountStatusBadge, RoleBadge } from '../../components/common/StatusBadge';
+import { getFuelTypeLabel, getLockTypeLabel, getRoleLabel } from '../../lib/formatters';
 
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -164,58 +166,11 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'ADMIN':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
-            <Shield className="w-3 h-3 mr-1" /> Quản trị viên
-          </span>
-        );
-      case 'DRIVER':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
-            <Car className="w-3 h-3 mr-1" /> Tài xế
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            <Users className="w-3 h-3 mr-1" /> Hành khách
-          </span>
-        );
-    }
-  };
+  const getRoleBadge = (role: UserRole) => <RoleBadge role={role} />;
 
-  const getStatusBadge = (status: AccountStatus, lockedUntil?: string | null) => {
-    switch (status) {
-      case 'ACTIVE':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Hoạt động
-          </span>
-        );
-      case 'LOCKED_TEMP':
-        return (
-          <div className="flex flex-col items-start gap-0.5">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
-              <Lock className="w-3 h-3 mr-1" /> Tạm khóa 14 ngày
-            </span>
-            {lockedUntil && (
-              <span className="text-[10px] text-amber-900 font-medium">
-                Đến: {new Date(lockedUntil).toLocaleDateString('vi-VN')}
-              </span>
-            )}
-          </div>
-        );
-      case 'LOCKED_PERM':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300">
-            <AlertTriangle className="w-3 h-3 mr-1" /> Khóa vĩnh viễn
-          </span>
-        );
-    }
-  };
+  const getStatusBadge = (status: AccountStatus, lockedUntil?: string | null) => (
+    <AccountStatusBadge status={status} lockedUntil={lockedUntil} />
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -224,11 +179,11 @@ export const UserManagement: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center">
-              <Shield className="w-7 h-7 mr-2 text-emerald-600" />
-              Quản lý Tài khoản & Xử lý Vi phạm (AD-01)
+              <Shield className="w-6 h-6 mr-2 text-emerald-600" />
+              Quản lý tài khoản
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Theo dõi tình trạng hoạt động, kiểm soát vi phạm tỷ lệ hủy chuyến và mở khóa tài khoản có lưu vết kiểm toán.
+              Theo dõi tài khoản, kiểm soát vi phạm tỷ lệ hủy chuyến và khóa hoặc mở khóa có lưu vết kiểm toán.
             </p>
           </div>
           <div className="text-sm text-slate-600 bg-slate-100 px-4 py-2 rounded-xl font-medium">
@@ -270,9 +225,9 @@ export const UserManagement: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               >
                 <option value="">Tất cả vai trò</option>
-                <option value="USER">Hành khách (USER)</option>
-                <option value="DRIVER">Tài xế (DRIVER)</option>
-                <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                <option value="USER">Người dùng</option>
+                <option value="DRIVER">Tài xế</option>
+                <option value="ADMIN">Quản trị viên</option>
               </select>
             </div>
 
@@ -287,9 +242,9 @@ export const UserManagement: React.FC = () => {
                 className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               >
                 <option value="">Tất cả trạng thái</option>
-                <option value="ACTIVE">Hoạt động (ACTIVE)</option>
-                <option value="LOCKED_TEMP">Tạm khóa 14 ngày (LOCKED_TEMP)</option>
-                <option value="LOCKED_PERM">Khóa vĩnh viễn (LOCKED_PERM)</option>
+                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="LOCKED_TEMP">Tạm khóa</option>
+                <option value="LOCKED_PERM">Khóa vĩnh viễn</option>
               </select>
             </div>
 
@@ -521,7 +476,7 @@ export const UserManagement: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-slate-500">Trạng thái hiện tại:</span>
                 <strong className="text-rose-700">
-                  {selectedUser.status === 'LOCKED_TEMP' ? 'Tạm khóa 14 ngày' : 'Khóa vĩnh viễn'}
+                  {selectedUser.status === 'LOCKED_TEMP' ? 'Tạm khóa' : 'Khóa vĩnh viễn'}
                 </strong>
               </div>
             </div>
@@ -611,7 +566,7 @@ export const UserManagement: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-slate-500">Vai trò:</span>
                 <strong className="text-slate-800">
-                  {lockTargetUser.role === 'DRIVER' ? 'Tài xế' : 'Hành khách'}
+                  {getRoleLabel(lockTargetUser.role)}
                 </strong>
               </div>
               <div className="flex justify-between">
@@ -842,7 +797,7 @@ export const UserManagement: React.FC = () => {
                           <div className="text-xl font-extrabold text-rose-900">{detailUser.stats.failed_requests}</div>
                         </div>
                         <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl">
-                          <div className="text-[11px] text-amber-700 font-medium">Tỷ lệ hủy tuần (CS-02)</div>
+                          <div className="text-[11px] text-amber-700 font-medium">Tỷ lệ hủy chuyến tuần này</div>
                           <div className="text-xl font-extrabold text-amber-950">
                             {detailUser.cancellation ? `${(detailUser.cancellation.week_rate * 100).toFixed(1)}%` : '0.0%'}
                           </div>
@@ -892,7 +847,7 @@ export const UserManagement: React.FC = () => {
                                   {v.brand_model || v.type} • {v.seat_count} chỗ • Cốp {v.cargo_area_m2}m²/{v.cargo_max_kg}kg
                                 </div>
                                 <div className="text-[11px] text-slate-400">
-                                  Nhiên liệu: {v.fuel_type} ({v.fuel_consumption}/100km)
+                                  Nhiên liệu: {getFuelTypeLabel(v.fuel_type)} ({v.fuel_consumption}/100km)
                                 </div>
                               </div>
                             </div>
@@ -922,7 +877,7 @@ export const UserManagement: React.FC = () => {
                                 Tỷ lệ hủy: {(v.cancel_rate * 100).toFixed(1)}% ({v.cancelled_count}/{v.confirmed_count})
                               </span>
                               <div className="text-[11px] text-slate-500">
-                                Tuần bắt đầu: {new Date(v.week_start).toLocaleDateString('vi-VN')} • Hình phạt: {v.lock_type}
+                                Tuần bắt đầu: {new Date(v.week_start).toLocaleDateString('vi-VN')} • Hình thức: {getLockTypeLabel(v.lock_type)}
                               </div>
                             </div>
                             <span
@@ -932,7 +887,7 @@ export const UserManagement: React.FC = () => {
                                   : 'bg-slate-200 text-slate-600'
                               }`}
                             >
-                              {v.status === 'ACTIVE' ? 'Đang hiệu lực' : 'Đã thu hồi (REVOKED)'}
+                              {v.status === 'ACTIVE' ? 'Đang hiệu lực' : 'Đã thu hồi'}
                             </span>
                           </div>
                         ))}
@@ -975,7 +930,9 @@ export const UserManagement: React.FC = () => {
                             {log.reason && <p className="text-slate-700">{log.reason}</p>}
                             <div className="text-[11px] text-slate-400">
                               Thực hiện bởi:{' '}
-                              {log.actor ? `${log.actor.full_name} (${log.actor.role})` : `Hệ thống (${log.actor_type})`}
+                              {log.actor
+                                ? `${log.actor.full_name} (${getRoleLabel(log.actor.role)})`
+                                : getRoleLabel(log.actor_type)}
                             </div>
                           </div>
                         ))}

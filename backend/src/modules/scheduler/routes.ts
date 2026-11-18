@@ -5,8 +5,13 @@ import { authenticateToken, requireRole } from '../../middlewares/auth.js';
 
 export const schedulerRouter = Router();
 
-// Xem trạng thái scheduler
-schedulerRouter.get('/status', SchedulerController.getStatus);
+// Xem trạng thái scheduler (yêu cầu quyền ADMIN)
+schedulerRouter.get(
+  '/status',
+  authenticateToken,
+  requireRole([user_role.ADMIN]),
+  SchedulerController.getStatus
+);
 
 // Các trigger thủ công yêu cầu quyền ADMIN
 schedulerRouter.post(

@@ -173,8 +173,8 @@ export const MyIncidents: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center">
-              <AlertTriangle className="w-7 h-7 mr-2 text-amber-600" />
-              Theo dõi Báo cáo Sự cố của tôi
+              <AlertTriangle className="w-6 h-6 mr-2 text-amber-600" />
+              Báo cáo sự cố của tôi
             </h1>
             <p className="text-sm text-slate-500 mt-1">
               Xem trực tiếp trạng thái tiếp nhận, điều tra và kết quả xử lý từ Quản trị viên cho các sự cố bạn đã gửi.
@@ -343,7 +343,7 @@ export const MyIncidents: React.FC = () => {
                   {/* Top Row */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-slate-400">INCIDENT-#{inc.id}</span>
+                      <span className="text-xs font-mono font-bold text-slate-500">Sự cố #{inc.id}</span>
                       {getStatusBadge(inc.status)}
                     </div>
                     <div className="text-xs text-slate-400">

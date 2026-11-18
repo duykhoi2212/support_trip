@@ -117,6 +117,19 @@ export class TripController {
     }
   }
 
+  static async getDriverDashboard(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');
+      const result = await TripService.getDriverDashboard(req.user.id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getDriverHistory(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new AppError(401, 'UNAUTHORIZED', 'Vui lòng đăng nhập.');

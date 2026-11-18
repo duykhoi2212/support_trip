@@ -1,7 +1,14 @@
 import { api } from './api';
-import { ApiSuccessResponse, TransportRequest, Trip, UserHistoryResponse } from '../types';
+import { ApiSuccessResponse, TransportRequest, Trip, UserDashboardData, UserHistoryResponse } from '../types';
 
 export const requestService = {
+  /**
+   * Dashboard tổng quan người dùng
+   */
+  async getUserDashboard(): Promise<UserDashboardData> {
+    const res = await api.get<ApiSuccessResponse<UserDashboardData>>('/requests/dashboard');
+    return res.data.data;
+  },
   /**
    * Tạo yêu cầu đi nhờ xe
    */

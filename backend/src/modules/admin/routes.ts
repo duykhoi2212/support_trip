@@ -8,6 +8,9 @@ export const adminRouter = Router();
 // Toàn bộ API admin yêu cầu token hợp lệ và quyền ADMIN
 adminRouter.use(authenticateToken, requireRole([user_role.ADMIN]));
 
+// Dashboard tổng quan Quản trị viên
+adminRouter.get('/dashboard', AdminController.getDashboard);
+
 // AD-01: Quản lý, xem chi tiết, khóa và mở khóa tài khoản
 adminRouter.get('/users', AdminController.getUsers);
 adminRouter.get('/users/:id', AdminController.getUserDetail);

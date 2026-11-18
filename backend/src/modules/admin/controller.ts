@@ -4,6 +4,18 @@ import { AuthenticatedRequest } from '../../middlewares/auth.js';
 import { AppError } from '../../middlewares/errorHandler.js';
 
 export class AdminController {
+  static async getDashboard(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await AdminService.getDashboard();
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getUsers(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await AdminService.getUsers(req.query);

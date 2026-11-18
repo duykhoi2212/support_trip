@@ -1416,5 +1416,148 @@ export class RequestService {
       },
     };
   }
+
+  /**
+   * Dashboard Tổng quan Người dùng (USER) - 100% số liệu thật từ CSDL
+   */
+  static async getUserDashboard(userId: bigint) {
+    const { weekStart, weekEnd } = getCurrentWeekRangeVN();
+
+    const [
+      totalRequests,
+      pendingCount,
+      acceptedCount,
+      inTransitCount,
+      completedCount,
+      recentRequests,
+      currentWeekRequests,
+      totalViolations,
+    ] = await Promise.all([
+      prisma.transportRequest.count({ where: { user_id: userId } }),
+      prisma.transportRequest.count({
+        where: { user_id: userId, status: request_status.PENDING },
+      }),
+      prisma.transportRequest.count({
+        where: { user_id: userId, status: request_status.ACCEPTED },
+      }),
+      prisma.transportRequest.count({
+        where: {
+          user_id: userId,
+          status: request_status.ACCEPTED,
+          OR: [
+            { trip: { status: trip_status.IN_PROGRESS } },
+            { ride_progress: ride_progress.PICKED_UP },
+            { package_items: { some: { status: package_status.PICKED_UP } } },
+          ],
+        },
+      }),
+      prisma.transportRequest.count({
+        where: { user_id: userId, status: request_status.COMPLETED },
+      }),
+      prisma.transportRequest.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        include: {
+          trip: {
+            select: {
+              id: true,
+              code: true,
+              origin_name: true,
+              dest_name: true,
+              departure_time: true,
+              status: true,
+              driver: {
+                select: { id: true, full_name: true, avatar_url: true },
+              },
+            },
+          },
+          package_items: {
+            select: { id: true, description: true, status: true },
+          },
+        },
+      }),
+      prisma.transportRequest.findMany({
+        where: {
+          user_id: userId,
+          trip: { departure_time: { gte: weekStart, lte: weekEnd } },
+        },
+        select: {
+          status: true,
+          cancelled_by: true,
+          counts_toward_cancel_rate: true,
+          fail_reason_code: true,
+        },
+      }),
+      prisma.violation.count({ where: { user_id: userId } }),
+    ]);
+
+    let weekConfirmed = 0;
+    let weekCancelled = 0;
+    for (const r of currentWeekRequests) {
+      if (r.cancelled_by === actor_type.DRIVER) continue;
+      if (
+        r.status === request_status.PENDING ||
+        r.status === request_status.REJECTED ||
+        r.status === request_status.EXPIRED
+      ) {
+        continue;
+      }
+      weekConfirmed++;
+      if (
+        r.status === request_status.CANCELLED &&
+        r.cancelled_by === actor_type.USER &&
+        r.counts_toward_cancel_rate
+      ) {
+        weekCancelled++;
+      } else if (
+        r.status === request_status.FAILED &&
+        r.fail_reason_code &&
+        ([fail_reason_code.WRONG_INFO, fail_reason_code.UNREACHABLE, fail_reason_code.ABSENT] as fail_reason_code[]).includes(
+          r.fail_reason_code
+        )
+      ) {
+        weekCancelled++;
+      }
+    }
+
+    const cancelRateResult = calculateWeeklyCancellationRate(weekConfirmed, weekCancelled);
+
+    return {
+      stats: {
+        total_requests: totalRequests,
+        pending_count: pendingCount,
+        accepted_count: acceptedCount,
+        in_transit_count: inTransitCount,
+        completed_count: completedCount,
+      },
+      cancellation: {
+        week_confirmed: weekConfirmed,
+        week_cancelled: weekCancelled,
+        week_rate: cancelRateResult.rate,
+        is_violation: cancelRateResult.isViolation,
+        total_violations: totalViolations,
+      },
+      recent_requests: recentRequests.map((r) => ({
+        ...r,
+        id: r.id.toString(),
+        trip_id: r.trip_id.toString(),
+        user_id: r.user_id.toString(),
+        package_items: r.package_items.map((p) => ({
+          ...p,
+          id: p.id.toString(),
+        })),
+        trip: r.trip
+          ? {
+              ...r.trip,
+              id: r.trip.id.toString(),
+              driver: r.trip.driver
+                ? { ...r.trip.driver, id: r.trip.driver.id.toString() }
+                : null,
+            }
+          : null,
+      })),
+    };
+  }
 }
 

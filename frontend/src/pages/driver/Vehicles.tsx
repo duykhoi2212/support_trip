@@ -424,7 +424,7 @@ export const Vehicles = () => {
                     {v.status === 'ACTIVE' ? (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                        Sẵn sàng (ACTIVE)
+                        Đang hoạt động
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-200 text-slate-700">

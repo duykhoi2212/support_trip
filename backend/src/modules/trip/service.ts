@@ -191,7 +191,7 @@ export class TripService {
   }
 
   /**
-   * Lấy chi tiết một chuyến xe (Tài xế hoặc Người dùng xem)
+   * Lấy chi tiết một chuyến xe (Công khai - tuyệt đối không trả về SĐT tài xế theo quy tắc Phone Masking)
    */
   static async getTripById(tripId: bigint) {
     const trip = await prisma.trip.findUnique({
@@ -203,7 +203,6 @@ export class TripService {
             id: true,
             full_name: true,
             avatar_url: true,
-            phone: true,
           },
         },
         _count: {
@@ -713,6 +712,133 @@ export class TripService {
         total_packages_delivered: totalPackagesDelivered,
         total_fuel_received: Math.round(totalFuelReceived),
       },
+    };
+  }
+
+  /**
+   * Dashboard Tổng quan Tài xế (DRIVER) - 100% số liệu thật từ CSDL
+   */
+  static async getDriverDashboard(driverId: bigint) {
+    const [
+      totalTrips,
+      openTrips,
+      inProgressTrips,
+      completedTrips,
+      pendingRequestsCount,
+      upcomingTrips,
+      pendingRequests,
+      vehicles,
+    ] = await Promise.all([
+      prisma.trip.count({ where: { driver_id: driverId } }),
+      prisma.trip.count({ where: { driver_id: driverId, status: trip_status.OPEN } }),
+      prisma.trip.count({ where: { driver_id: driverId, status: trip_status.IN_PROGRESS } }),
+      prisma.trip.count({ where: { driver_id: driverId, status: trip_status.COMPLETED } }),
+      prisma.transportRequest.count({
+        where: {
+          status: request_status.PENDING,
+          trip: { driver_id: driverId, status: trip_status.OPEN },
+        },
+      }),
+      prisma.trip.findMany({
+        where: {
+          driver_id: driverId,
+          status: { in: [trip_status.OPEN, trip_status.CLOSED, trip_status.IN_PROGRESS] },
+        },
+        orderBy: { departure_time: 'asc' },
+        take: 4,
+        include: {
+          vehicle: {
+            select: {
+              id: true,
+              plate_number: true,
+              brand_model: true,
+              type: true,
+            },
+          },
+          _count: {
+            select: {
+              transport_requests: {
+                where: { status: request_status.PENDING },
+              },
+            },
+          },
+        },
+      }),
+      prisma.transportRequest.findMany({
+        where: {
+          status: request_status.PENDING,
+          trip: { driver_id: driverId, status: trip_status.OPEN },
+        },
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        include: {
+          user: {
+            select: { id: true, full_name: true, avatar_url: true },
+          },
+          trip: {
+            select: {
+              id: true,
+              code: true,
+              origin_name: true,
+              dest_name: true,
+              departure_time: true,
+            },
+          },
+          package_items: {
+            select: { id: true, description: true, weight_kg: true, area_m2: true },
+          },
+        },
+      }),
+      prisma.vehicle.findMany({
+        where: { driver_id: driverId, is_deleted: false },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          brand_model: true,
+          plate_number: true,
+          seat_count: true,
+          cargo_area_m2: true,
+          cargo_max_kg: true,
+          fuel_type: true,
+          status: true,
+          photo_url: true,
+        },
+      }),
+    ]);
+
+    return {
+      stats: {
+        total_trips: totalTrips,
+        open_trips: openTrips,
+        in_progress_trips: inProgressTrips,
+        completed_trips: completedTrips,
+        pending_requests_count: pendingRequestsCount,
+      },
+      upcoming_trips: upcomingTrips.map((t) => ({
+        ...t,
+        id: t.id.toString(),
+        driver_id: t.driver_id.toString(),
+        vehicle_id: t.vehicle_id.toString(),
+        vehicle: { ...t.vehicle, id: t.vehicle.id.toString() },
+        pending_count: t._count.transport_requests,
+      })),
+      pending_requests: pendingRequests.map((r) => ({
+        ...r,
+        id: r.id.toString(),
+        trip_id: r.trip_id.toString(),
+        user_id: r.user_id.toString(),
+        user: { ...r.user, id: r.user.id.toString() },
+        trip: { ...r.trip, id: r.trip.id.toString() },
+        package_items: r.package_items.map((p) => ({
+          ...p,
+          id: p.id.toString(),
+        })),
+      })),
+      vehicles: vehicles.map((v) => ({
+        ...v,
+        id: v.id.toString(),
+      })),
     };
   }
 }

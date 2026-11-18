@@ -68,6 +68,27 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-18 (NHÁNH `feat/pre-deployment-polish` — HOÀN THIỆN PRE-DEPLOYMENT: BẢO MẬT P0, DASHBOARD 3 VAI TRÒ, UI REFINEMENT, DỌN DẸP ADMIN STATISTICS & CHÍNH TẢ)**:
+  - **Bảo mật & Backend cốt lõi (Giai đoạn A)**:
+    - Vá lỗ hổng rò rỉ SĐT tài xế ở API công khai `GET /api/trips/:id` (tuyệt đối tuân thủ Phone Masking).
+    - Bổ sung `requireRole([USER])` cho toàn bộ 6 route của khách hàng tại `request/routes.ts`; bảo vệ `GET /api/scheduler/status` (Admin) và `POST /api/map/route` (Auth).
+    - Tích hợp `helmet`, cấu hình CORS whitelist theo `FRONTEND_URL`/`CORS_ORIGINS`, `express-rate-limit` cho Auth/AI/Map, fail-fast kiểm tra `JWT_SECRET` ở production.
+    - Nâng cấp `errorHandler.ts` xử lý `MulterError`, `BigInt SyntaxError`, Prisma `P2002`/`P2025`; thay toàn bộ `throw new Error` ở `AdminService` bằng `AppError`.
+    - Chuẩn hóa múi giờ Việt Nam (`Asia/Ho_Chi_Minh`) trong thống kê & bảng chuyến theo ngày; hỗ trợ biến môi trường `GEMINI_MODEL` (mặc định `gemini-2.0-flash`).
+    - Dọn dẹp 3 file rỗng/trùng trong `docs/`.
+  - **Nền tảng UI Kit & Responsive (Giai đoạn B)**:
+    - Chuyển màu `primary` trong `tailwind.config.js` sang Emerald (`#059669`), tích hợp `sonner`, `recharts`, `@tanstack/react-table` v8, `@radix-ui/react-alert-dialog` & `class-variance-authority`.
+    - Tạo bộ component chuẩn hóa: `StatusBadge.tsx`, `StatCard.tsx`, `DateRangeFilter.tsx`, `DataTable.tsx`, `ConfirmDialog`, `ErrorBoundary.tsx`, `lib/formatters.ts`.
+    - Nâng cấp `Navbar.tsx` bổ sung Mobile Navigation Drawer cho điện thoại/tablet; nâng cấp `api.ts` + `AuthContext.tsx` tự động đăng xuất & thông báo khi token hết hạn (401) hoặc bị khóa nóng (403).
+  - **Dashboard 3 Vai trò & Dọn dẹp Admin Statistics (Giai đoạn C)**:
+    - Backend bổ sung 3 API tổng hợp 100% số liệu thật: `GET /api/requests/dashboard`, `GET /api/trips/driver/dashboard`, `GET /api/admin/dashboard`.
+    - Xây dựng 3 trang tổng quan mới: `/user/dashboard` (`UserDashboard.tsx`, giữ nguyên `/` là Tìm chuyến xe mặc định cho User), `/driver/dashboard` (`DriverDashboard.tsx`), `/admin/dashboard` (`AdminDashboard.tsx` kèm biểu đồ Recharts 14 ngày).
+    - **Admin Statistics (Phương án B)**: Loại bỏ hoàn toàn dòng *"Đã tự nguyện chia sẻ qua hệ thống"* và không hiển thị con số tiền tệ trên KPI Admin — thay bằng **Quãng đường kết nối (km)** & **Tỷ lệ hoàn thành chuyến (%)** kết hợp biểu đồ Recharts tương tác.
+  - **Tinh gọn Giao diện, Chính tả & Code-splitting (Giai đoạn D)**:
+    - Áp dụng đầy đủ bảng rà soát 32 mục chính tả/thuật ngữ (bỏ mã SRS `AD-01..03`, `US-02`, `CS-05`; Việt hóa 100% enum tiếng Anh; thống nhất *"Gửi hàng"*, *"Người dùng"*, *"Lịch sử chuyến xe"*).
+    - Thay 100% (16/16) lệnh `alert()`/`confirm()` bằng Toast `sonner` và `<ConfirmDialog />`.
+    - Sửa lỗi stale closure & múi giờ bộ lọc ngày tại `DriverHistory.tsx`, ẩn thông tin mẫu `AdminLogin.tsx` khỏi production build.
+    - Bật `React.lazy` + `manualChunks` giảm bundle chính từ **801.66 KB** xuống **93.07 KB (gzip 31.45 KB)**.
 - **2026-11-18 (HOÀN THÀNH TOÀN BỘ ROADMAP: CHẶNG 2 ADMIN CHUYÊN SÂU & GIAI ĐOẠN 7 DOCKER/VPS DEPLOYMENT)**:
   - **Admin Quản lý Tài khoản Chuyên sâu (`AD-01`)**:
     - Backend: Bổ sung `GET /api/admin/users/:id` (trả về hồ sơ đầy đủ, phương tiện, thống kê chuyến/yêu cầu, tỷ lệ hủy tuần hiện tại, danh sách vi phạm & lịch sử AuditLog) và `POST /api/admin/users/:id/lock` (khóa tạm có số ngày tùy chỉnh hoặc khóa vĩnh viễn kèm lý do giải trình $\ge 10$ ký tự, chặn tự khóa hoặc khóa Admin khác, ghi `AuditLog`, gửi `Notification` tới người bị khóa).

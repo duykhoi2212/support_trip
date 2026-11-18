@@ -393,7 +393,7 @@ export const CreateTrip: React.FC = () => {
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có phương tiện đang hoạt động</h3>
           <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-            Bạn cần đăng ký ít nhất một phương tiện có trạng thái hoạt động (ACTIVE) trước khi có thể tạo chuyến xe.
+            Bạn cần đăng ký ít nhất một phương tiện có trạng thái sẵn sàng trước khi tạo chuyến xe.
           </p>
           <Link
             to="/driver/vehicles"

@@ -31,7 +31,7 @@ export const AdminLogin: React.FC = () => {
       }
 
       login(data.token, data.user);
-      navigate('/admin/users');
+      navigate('/admin/dashboard');
     } catch (err: any) {
       setError(err.message || 'Đăng nhập quản trị viên thất bại.');
     } finally {
@@ -59,14 +59,14 @@ export const AdminLogin: React.FC = () => {
 
         {/* Header Admin */}
         <div className="text-center pt-2">
-          <div className="w-16 h-16 bg-gradient-to-tr from-purple-600 to-emerald-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/20">
+          <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-900/30">
             <ShieldCheck className="w-9 h-9" />
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Cổng Quản Trị Viên
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            Cổng quản trị viên
           </h2>
           <p className="mt-2 text-xs text-slate-400">
-            Hệ thống Quản lý, Giám sát Sự cố & Thống kê Điều phối Toàn diện
+            Quản lý tài khoản, sự cố và vận hành hệ thống GoX
           </p>
         </div>
 
@@ -135,22 +135,24 @@ export const AdminLogin: React.FC = () => {
           </button>
         </form>
 
-        {/* Tiện ích Demo cho bảo vệ đồ án */}
-        <div className="pt-4 border-t border-slate-700/60">
-          <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-xs">
-            <div className="text-slate-400">
-              <span className="font-semibold text-slate-300">Tài khoản mẫu:</span>
-              <div className="text-[11px] text-slate-500">admin@example.com / Password@123</div>
+        {/* Tiện ích Demo chỉ hiển thị ở môi trường phát triển (ẩn hoàn toàn trên Production) */}
+        {import.meta.env.DEV && (
+          <div className="pt-4 border-t border-slate-700/60">
+            <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-xs">
+              <div className="text-slate-400">
+                <span className="font-semibold text-slate-300">Tài khoản mẫu (Dev):</span>
+                <div className="text-[11px] text-slate-500">admin@example.com / Password@123</div>
+              </div>
+              <button
+                type="button"
+                onClick={fillDemoAdmin}
+                className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold rounded-lg text-xs transition-colors"
+              >
+                Điền nhanh
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={fillDemoAdmin}
-              className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold rounded-lg text-xs transition-colors"
-            >
-              Điền nhanh
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Liên kết quay lại Login Người dùng */}
         <div className="text-center pt-2">

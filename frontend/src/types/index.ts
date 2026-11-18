@@ -330,10 +330,12 @@ export interface AdminStatsOverview {
     trips: {
       total: number;
       open: number;
+      closed?: number;
       in_progress: number;
       completed: number;
       cancelled: number;
       cancel_rate_percent: number;
+      completion_rate_percent?: number;
     };
     requests: {
       total: number;
@@ -342,6 +344,7 @@ export interface AdminStatsOverview {
     };
     impact: {
       total_passengers_served: number;
+      total_distance_km?: number;
       total_shared_fuel_cost: number;
     };
     incidents: {
@@ -364,6 +367,138 @@ export interface AdminStatsOverview {
     from: string;
     to: string;
   };
+}
+
+export interface UserDashboardData {
+  stats: {
+    total_requests: number;
+    pending_count: number;
+    accepted_count: number;
+    in_transit_count: number;
+    completed_count: number;
+  };
+  cancellation: UserHistoryCancellationStats;
+  recent_requests: Array<{
+    id: string;
+    code: string;
+    type: RequestType;
+    status: RequestStatus;
+    passenger_count?: number | null;
+    created_at: string;
+    trip?: {
+      id: string;
+      code: string;
+      origin_name: string;
+      dest_name: string;
+      departure_time: string;
+      status: TripStatus;
+      driver?: { id: string; full_name: string; avatar_url?: string | null } | null;
+    } | null;
+    package_items?: Array<{ id: string; description: string; status: PackageStatus }>;
+  }>;
+}
+
+export interface DriverDashboardData {
+  stats: {
+    total_trips: number;
+    open_trips: number;
+    in_progress_trips: number;
+    completed_trips: number;
+    pending_requests_count: number;
+  };
+  upcoming_trips: Array<{
+    id: string;
+    code: string;
+    origin_name: string;
+    dest_name: string;
+    departure_time: string;
+    status: TripStatus;
+    seats_total: number;
+    seats_reserved: number;
+    cargo_area_total_m2: number;
+    cargo_area_reserved_m2: number;
+    cargo_weight_total_kg: number;
+    cargo_weight_reserved_kg: number;
+    pending_count: number;
+    vehicle: {
+      id: string;
+      plate_number: string;
+      brand_model?: string | null;
+      type: VehicleType;
+    };
+  }>;
+  pending_requests: Array<{
+    id: string;
+    code: string;
+    type: RequestType;
+    passenger_count?: number | null;
+    created_at: string;
+    user: { id: string; full_name: string; avatar_url?: string | null };
+    trip: { id: string; code: string; origin_name: string; dest_name: string; departure_time: string };
+    package_items: Array<{ id: string; description: string; weight_kg: number; area_m2: number }>;
+  }>;
+  vehicles: Array<{
+    id: string;
+    type: VehicleType;
+    brand_model?: string | null;
+    plate_number: string;
+    seat_count: number;
+    cargo_area_m2: number;
+    cargo_max_kg: number;
+    fuel_type: FuelType;
+    status: string;
+    photo_url: string;
+  }>;
+}
+
+export interface AdminDashboardData {
+  kpi: {
+    users: {
+      total: number;
+      customers: number;
+      drivers: number;
+      locked: number;
+    };
+    trips: {
+      total: number;
+      active: number;
+      completed: number;
+      cancelled: number;
+      completion_rate_percent: number;
+      total_distance_km: number;
+    };
+    incidents: {
+      total: number;
+      pending: number;
+      not_received: number;
+      received: number;
+      processing: number;
+      resolved: number;
+    };
+  };
+  daily_breakdown: Array<{
+    date: string;
+    total: number;
+    completed: number;
+    cancelled: number;
+    in_progress: number;
+    passengers: number;
+  }>;
+  pending_incidents: Array<{
+    id: string;
+    title: string;
+    status: IncidentStatus;
+    created_at: string;
+    reporter: { id: string; full_name: string; role: UserRole };
+    trip?: { id: string; code: string } | null;
+  }>;
+  recent_activities: Array<{
+    id: string;
+    type: 'AUDIT' | 'TRIP' | 'INCIDENT';
+    title: string;
+    description: string;
+    created_at: string;
+  }>;
 }
 
 export interface AdminUserDetail extends Omit<AdminUser, '_count'> {

@@ -21,6 +21,28 @@ import { z } from 'zod';
 import { AppError } from '../../middlewares/errorHandler.js';
 import { calculateWeeklyCancellationRate } from '../../utils/cancellation.js';
 import { getCurrentWeekRangeVN } from '../scheduler/service.js';
+import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
+
+const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+function formatVnDateKey(date: Date): string {
+  return format(toZonedTime(date, VN_TIMEZONE), 'yyyy-MM-dd');
+}
+
+function parseVnDayStart(dateStr: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(`${dateStr}T00:00:00.000+07:00`);
+  }
+  return new Date(dateStr);
+}
+
+function parseVnDayEnd(dateStr: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(`${dateStr}T23:59:59.999+07:00`);
+  }
+  return new Date(dateStr);
+}
 
 export class AdminService {
   /**
@@ -133,11 +155,11 @@ export class AdminService {
     });
 
     if (!user) {
-      throw new Error('Không tìm thấy tài khoản người dùng.');
+      throw new AppError(404, 'USER_NOT_FOUND', 'Không tìm thấy tài khoản người dùng.');
     }
 
     if (user.status === account_status.ACTIVE) {
-      throw new Error('Tài khoản hiện đang ở trạng thái Hoạt động (ACTIVE), không cần mở khóa.');
+      throw new AppError(400, 'USER_ALREADY_ACTIVE', 'Tài khoản hiện đang ở trạng thái Hoạt động, không cần mở khóa.');
     }
 
     // Thực hiện trong Transaction an toàn
@@ -627,7 +649,7 @@ export class AdminService {
     });
 
     if (!incident) {
-      throw new Error('Không tìm thấy sự cố.');
+      throw new AppError(404, 'INCIDENT_NOT_FOUND', 'Không tìm thấy sự cố.');
     }
 
     if (incident.status === input.status) {
@@ -660,7 +682,9 @@ export class AdminService {
         PROCESSING: 'Đang xử lý',
         RESOLVED: 'Đã giải quyết',
       };
-      throw new Error(
+      throw new AppError(
+        400,
+        'INVALID_STATUS_TRANSITION',
         `Quy trình xử lý sự cố phải tuân thủ tuần tự từng bước: Chưa tiếp nhận ➔ Đã tiếp nhận ➔ Đang xử lý ➔ Đã giải quyết. Không thể chuyển trực tiếp từ "${statusLabels[incident.status]}" sang "${statusLabels[input.status]}".`
       );
     }
@@ -732,21 +756,22 @@ export class AdminService {
   }
 
   /**
-   * AD-03: Thống kê tổng quan vận hành hệ thống (Overview KPI & Biểu đồ theo ngày)
+   * AD-03: Thống kê tổng quan vận hành hệ thống (Overview KPI & Biểu đồ theo ngày giờ VN)
    */
   static async getStatisticsOverview(rawQuery: z.infer<typeof statisticsQuerySchema> | any) {
     const query = statisticsQuerySchema.parse(rawQuery);
 
     const now = new Date();
     const fromDate = query.from_date
-      ? new Date(query.from_date)
+      ? parseVnDayStart(query.from_date)
       : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 ngày trước
-    const toDate = query.to_date ? new Date(query.to_date) : now;
+    const toDate = query.to_date ? parseVnDayEnd(query.to_date) : now;
 
     // 1. Thống kê Chuyến xe
     const [
       totalTrips,
       openTrips,
+      closedTrips,
       inProgressTrips,
       completedTrips,
       cancelledTrips,
@@ -755,6 +780,9 @@ export class AdminService {
       prisma.trip.count({ where: { departure_time: { gte: fromDate, lte: toDate } } }),
       prisma.trip.count({
         where: { status: trip_status.OPEN, departure_time: { gte: fromDate, lte: toDate } },
+      }),
+      prisma.trip.count({
+        where: { status: trip_status.CLOSED, departure_time: { gte: fromDate, lte: toDate } },
       }),
       prisma.trip.count({
         where: { status: trip_status.IN_PROGRESS, departure_time: { gte: fromDate, lte: toDate } },
@@ -772,6 +800,7 @@ export class AdminService {
           status: true,
           departure_time: true,
           seats_reserved: true,
+          distance_km: true,
           estimated_fuel_cost: true,
         },
       }),
@@ -812,20 +841,27 @@ export class AdminService {
       }),
     ]);
 
-    // Tổng số tiền nhiên liệu/sạc đã chia sẻ
+    // Tổng ước tính chi phí nhiên liệu tham khảo (giữ field tương thích ngược test)
     const totalSharedFuelCost = requestsWithFuel.reduce(
       (sum, r) => sum + (r.shared_fuel_cost || 0),
       0
     );
 
-    // Tổng số lượt hành khách đã phục vụ (từ các chuyến COMPLETED)
-    const totalPassengersServed = tripsInRange
-      .filter((t) => t.status === trip_status.COMPLETED)
-      .reduce((sum, t) => sum + (t.seats_reserved || 0), 0);
+    // Tổng quãng đường kết nối thực tế (km) & Tổng số lượt hành khách đã phục vụ (chuyến COMPLETED)
+    const completedTripRows = tripsInRange.filter((t) => t.status === trip_status.COMPLETED);
+    const totalPassengersServed = completedTripRows.reduce(
+      (sum, t) => sum + (t.seats_reserved || 0),
+      0
+    );
+    const totalDistanceKm = Number(
+      completedTripRows.reduce((sum, t) => sum + (t.distance_km || 0), 0).toFixed(1)
+    );
 
-    // Tỷ lệ hủy chuyến hệ thống
+    // Tỷ lệ hủy & Tỷ lệ hoàn thành chuyến hệ thống
     const systemCancelRate =
       totalTrips > 0 ? Number(((cancelledTrips / totalTrips) * 100).toFixed(1)) : 0;
+    const systemCompletionRate =
+      totalTrips > 0 ? Number(((completedTrips / totalTrips) * 100).toFixed(1)) : 0;
 
     // 3. Thống kê Sự cố
     const [
@@ -850,7 +886,7 @@ export class AdminService {
       }),
     ]);
 
-    // 4. Nhóm số liệu theo từng ngày cho biểu đồ trực quan
+    // 4. Nhóm số liệu theo từng ngày chuẩn múi giờ Việt Nam (UTC+7)
     const dailyMap: Record<
       string,
       {
@@ -864,7 +900,7 @@ export class AdminService {
     > = {};
 
     tripsInRange.forEach((t) => {
-      const dayKey = t.departure_time.toISOString().split('T')[0];
+      const dayKey = formatVnDateKey(t.departure_time);
       if (!dailyMap[dayKey]) {
         dailyMap[dayKey] = {
           date: dayKey,
@@ -895,10 +931,12 @@ export class AdminService {
         trips: {
           total: totalTrips,
           open: openTrips,
+          closed: closedTrips,
           in_progress: inProgressTrips,
           completed: completedTrips,
           cancelled: cancelledTrips,
           cancel_rate_percent: systemCancelRate,
+          completion_rate_percent: systemCompletionRate,
         },
         requests: {
           total: totalRequests,
@@ -907,6 +945,7 @@ export class AdminService {
         },
         impact: {
           total_passengers_served: totalPassengersServed,
+          total_distance_km: totalDistanceKm,
           total_shared_fuel_cost: totalSharedFuelCost,
         },
         incidents: {
@@ -926,7 +965,7 @@ export class AdminService {
   }
 
   /**
-   * AD-03: Lấy danh sách chuyến xe chi tiết theo ngày cụ thể kèm bộ lọc trạng thái
+   * AD-03: Lấy danh sách chuyến xe chi tiết theo ngày cụ thể (giờ Việt Nam UTC+7)
    */
   static async getTripsByDate(rawQuery: z.infer<typeof tripsByDateQuerySchema> | any) {
     const query = tripsByDateQuerySchema.parse(rawQuery);
@@ -935,8 +974,8 @@ export class AdminService {
     const where: any = {};
 
     if (query.date) {
-      const startOfDay = new Date(`${query.date}T00:00:00.000Z`);
-      const endOfDay = new Date(`${query.date}T23:59:59.999Z`);
+      const startOfDay = parseVnDayStart(query.date);
+      const endOfDay = parseVnDayEnd(query.date);
       where.departure_time = {
         gte: startOfDay,
         lte: endOfDay,
@@ -1113,6 +1152,217 @@ export class AdminService {
           id: inc.reporter.id.toString(),
         },
       })),
+    };
+  }
+
+  /**
+   * Dashboard Tổng quan Quản trị viên (100% dữ liệu thực tế, không hiển thị tiền tệ)
+   */
+  static async getDashboard() {
+    const now = new Date();
+    const from14Days = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalUsers,
+      totalCustomers,
+      totalDrivers,
+      lockedAccounts,
+      totalTrips,
+      activeTrips,
+      completedTrips,
+      cancelledTrips,
+      completedDistanceAgg,
+      totalIncidents,
+      notReceivedIncidents,
+      receivedIncidents,
+      processingIncidents,
+      resolvedIncidents,
+      tripsLast14Days,
+      pendingIncidents,
+      recentAuditLogs,
+      recentTrips,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { role: user_role.USER } }),
+      prisma.user.count({ where: { role: user_role.DRIVER } }),
+      prisma.user.count({
+        where: { status: { in: [account_status.LOCKED_TEMP, account_status.LOCKED_PERM] } },
+      }),
+      prisma.trip.count(),
+      prisma.trip.count({
+        where: { status: { in: [trip_status.OPEN, trip_status.CLOSED, trip_status.IN_PROGRESS] } },
+      }),
+      prisma.trip.count({ where: { status: trip_status.COMPLETED } }),
+      prisma.trip.count({ where: { status: trip_status.CANCELLED } }),
+      prisma.trip.aggregate({
+        where: { status: trip_status.COMPLETED },
+        _sum: { distance_km: true },
+      }),
+      prisma.incidentReport.count(),
+      prisma.incidentReport.count({ where: { status: incident_status.NOT_RECEIVED } }),
+      prisma.incidentReport.count({ where: { status: incident_status.RECEIVED } }),
+      prisma.incidentReport.count({ where: { status: incident_status.PROCESSING } }),
+      prisma.incidentReport.count({ where: { status: incident_status.RESOLVED } }),
+      prisma.trip.findMany({
+        where: { departure_time: { gte: from14Days, lte: now } },
+        select: {
+          status: true,
+          departure_time: true,
+          seats_reserved: true,
+        },
+      }),
+      prisma.incidentReport.findMany({
+        where: {
+          status: {
+            in: [incident_status.NOT_RECEIVED, incident_status.RECEIVED, incident_status.PROCESSING],
+          },
+        },
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        include: {
+          reporter: {
+            select: { id: true, full_name: true, role: true },
+          },
+          trip: {
+            select: { id: true, code: true },
+          },
+        },
+      }),
+      prisma.auditLog.findMany({
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        include: {
+          actor: { select: { id: true, full_name: true, role: true } },
+        },
+      }),
+      prisma.trip.findMany({
+        orderBy: { created_at: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          code: true,
+          origin_name: true,
+          dest_name: true,
+          status: true,
+          created_at: true,
+          driver: { select: { full_name: true } },
+        },
+      }),
+    ]);
+
+    // Biểu đồ 14 ngày gần nhất (luôn đủ 14 cột theo ngày giờ VN)
+    const dailyMap: Record<
+      string,
+      { date: string; total: number; completed: number; cancelled: number; in_progress: number; passengers: number }
+    > = {};
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const key = formatVnDateKey(d);
+      dailyMap[key] = { date: key, total: 0, completed: 0, cancelled: 0, in_progress: 0, passengers: 0 };
+    }
+    for (const t of tripsLast14Days) {
+      const key = formatVnDateKey(t.departure_time);
+      if (dailyMap[key]) {
+        dailyMap[key].total += 1;
+        if (t.status === trip_status.COMPLETED) {
+          dailyMap[key].completed += 1;
+          dailyMap[key].passengers += t.seats_reserved || 0;
+        } else if (t.status === trip_status.CANCELLED) {
+          dailyMap[key].cancelled += 1;
+        } else if (t.status === trip_status.IN_PROGRESS) {
+          dailyMap[key].in_progress += 1;
+        }
+      }
+    }
+
+    // Tổng hợp dòng thời gian hoạt động gần đây (từ dữ liệu thật)
+    type ActivityItem = {
+      id: string;
+      type: 'AUDIT' | 'TRIP' | 'INCIDENT';
+      title: string;
+      description: string;
+      created_at: string;
+    };
+
+    const activities: ActivityItem[] = [];
+    for (const log of recentAuditLogs) {
+      const actionText =
+        log.action === 'LOCK_ACCOUNT'
+          ? 'Khóa tài khoản'
+          : log.action === 'UNLOCK_ACCOUNT'
+          ? 'Mở khóa tài khoản'
+          : log.action;
+      activities.push({
+        id: `audit-${log.id.toString()}`,
+        type: 'AUDIT',
+        title: `${actionText} (#${log.target_id?.toString() || ''})`,
+        description: log.reason || `Thực hiện bởi ${log.actor?.full_name || 'Hệ thống'}`,
+        created_at: log.created_at.toISOString(),
+      });
+    }
+    for (const trip of recentTrips) {
+      activities.push({
+        id: `trip-${trip.id.toString()}`,
+        type: 'TRIP',
+        title: `Chuyến ${trip.code} • ${trip.driver.full_name}`,
+        description: `${trip.origin_name} ➔ ${trip.dest_name}`,
+        created_at: trip.created_at.toISOString(),
+      });
+    }
+    for (const inc of pendingIncidents) {
+      activities.push({
+        id: `inc-${inc.id.toString()}`,
+        type: 'INCIDENT',
+        title: `Sự cố #${inc.id.toString()}: ${inc.title}`,
+        description: `Gửi bởi ${inc.reporter.full_name}${inc.trip ? ` • Chuyến ${inc.trip.code}` : ''}`,
+        created_at: inc.created_at.toISOString(),
+      });
+    }
+
+    activities.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+    const completionRate =
+      totalTrips > 0 ? Number(((completedTrips / totalTrips) * 100).toFixed(1)) : 0;
+
+    return {
+      kpi: {
+        users: {
+          total: totalUsers,
+          customers: totalCustomers,
+          drivers: totalDrivers,
+          locked: lockedAccounts,
+        },
+        trips: {
+          total: totalTrips,
+          active: activeTrips,
+          completed: completedTrips,
+          cancelled: cancelledTrips,
+          completion_rate_percent: completionRate,
+          total_distance_km: Number((completedDistanceAgg._sum.distance_km || 0).toFixed(1)),
+        },
+        incidents: {
+          total: totalIncidents,
+          pending: notReceivedIncidents + receivedIncidents + processingIncidents,
+          not_received: notReceivedIncidents,
+          received: receivedIncidents,
+          processing: processingIncidents,
+          resolved: resolvedIncidents,
+        },
+      },
+      daily_breakdown: Object.values(dailyMap),
+      pending_incidents: pendingIncidents.map((inc) => ({
+        id: inc.id.toString(),
+        title: inc.title,
+        status: inc.status,
+        created_at: inc.created_at.toISOString(),
+        reporter: {
+          id: inc.reporter.id.toString(),
+          full_name: inc.reporter.full_name,
+          role: inc.reporter.role,
+        },
+        trip: inc.trip ? { id: inc.trip.id.toString(), code: inc.trip.code } : null,
+      })),
+      recent_activities: activities.slice(0, 8),
     };
   }
 }

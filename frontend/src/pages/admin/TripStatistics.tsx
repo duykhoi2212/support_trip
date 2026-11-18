@@ -3,36 +3,45 @@ import {
   TrendingUp,
   Car,
   Users,
-  Fuel,
   AlertTriangle,
   Calendar,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Zap,
   Filter,
   Loader2,
   BarChart3,
   Search,
+  Route,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 import { adminService } from '../../services/adminService';
 import { AdminStatsOverview, Trip } from '../../types';
+import { formatLocalYMD } from '../../lib/formatters';
+import { StatCard } from '../../components/common/StatCard';
+import { TripStatusBadge } from '../../components/common/StatusBadge';
 
 export const TripStatistics: React.FC = () => {
   const [stats, setStats] = useState<AdminStatsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Date range filters for overview
+  // Date range filters for overview (chuẩn ngày nội bộ VN)
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() - 29);
+    return formatLocalYMD(d);
   });
-  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [toDate, setToDate] = useState(() => formatLocalYMD(new Date()));
 
   // Daily trip lookup states
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => formatLocalYMD(new Date()));
   const [selectedStatus, setSelectedStatus] = useState('');
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
@@ -44,12 +53,12 @@ export const TripStatistics: React.FC = () => {
       setLoading(true);
       setError(null);
       const res = await adminService.getStatisticsOverview({
-        from_date: fromDate ? `${fromDate}T00:00:00.000Z` : undefined,
-        to_date: toDate ? `${toDate}T23:59:59.999Z` : undefined,
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
       });
       setStats(res);
     } catch (err: any) {
-      setError(err.message || 'Không thể tải thống kê vận hành');
+      setError(err.message || 'Không thể tải thống kê vận hành.');
     } finally {
       setLoading(false);
     }
@@ -86,59 +95,28 @@ export const TripStatistics: React.FC = () => {
     fetchOverview();
   };
 
-  const getTripStatusBadge = (status: string) => {
-    switch (status) {
-      case 'OPEN':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <Clock className="w-3 h-3 mr-1" /> Đang nhận khách
-          </span>
-        );
-      case 'IN_PROGRESS':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Đang di chuyển
-          </span>
-        );
-      case 'COMPLETED':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 mr-1" /> Hoàn thành
-          </span>
-        );
-      case 'CANCELLED':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            <XCircle className="w-3 h-3 mr-1" /> Đã hủy
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-            {status}
-          </span>
-        );
-    }
-  };
+  const chartData = (stats?.daily_breakdown || []).map((day) => ({
+    ...day,
+    shortDate: day.date.slice(5).split('-').reverse().join('/'),
+  }));
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center">
-              <BarChart3 className="w-7 h-7 mr-2 text-emerald-600" />
-              Thống kê Vận hành & Báo cáo Chuyến xe (AD-03)
+              <BarChart3 className="w-6 h-6 mr-2 text-emerald-600" />
+              Thống kê vận hành
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Phân tích chỉ số chuyến xe, lượt phục vụ, chi phí nhiên liệu chia sẻ và tỷ lệ hủy theo ngày/tuần/tháng.
+              Theo dõi số chuyến xe, lượt hành khách, quãng đường kết nối và tỷ lệ hoàn thành theo ngày.
             </p>
           </div>
 
-          {/* Bộ lọc khoảng ngày tổng quan */}
           <form onSubmit={handleFilterOverview} className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
+            <div className="flex items-center bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
               <Calendar className="w-3.5 h-3.5 text-slate-400 mr-2" />
               <input
                 type="date"
@@ -166,150 +144,122 @@ export const TripStatistics: React.FC = () => {
         {loading ? (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-500 flex flex-col items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
-            <span>Đang tổng hợp dữ liệu thống kê...</span>
+            <span className="text-sm">Đang tổng hợp dữ liệu thống kê...</span>
           </div>
         ) : error ? (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center text-rose-600">
             <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-rose-500" />
-            <p>{error}</p>
+            <p className="text-sm">{error}</p>
           </div>
         ) : stats ? (
           <>
-            {/* Top 4 KPI Cards */}
+            {/* Top 4 KPI Cards (Phương án B: Thuần vận hành, không hiển thị tiền tệ) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Chuyến xe */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng Chuyến xe</span>
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                    <Car className="w-5 h-5" />
+              <StatCard
+                label="Tổng chuyến xe"
+                value={stats.kpi.trips.total}
+                icon={<Car className="w-5 h-5" />}
+                accent="sky"
+                subtext={
+                  <div className="flex items-center justify-between">
+                    <span>
+                      Hoàn thành: <strong className="text-emerald-700">{stats.kpi.trips.completed}</strong>
+                    </span>
+                    <span>
+                      Hủy: <strong className="text-rose-600">{stats.kpi.trips.cancelled}</strong>
+                    </span>
+                    <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-semibold">
+                      {stats.kpi.trips.cancel_rate_percent}% hủy
+                    </span>
                   </div>
-                </div>
-                <div className="text-3xl font-black text-slate-900">{stats.kpi.trips.total}</div>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span>Hoàn thành: <strong className="text-emerald-700">{stats.kpi.trips.completed}</strong></span>
-                  <span>Hủy: <strong className="text-rose-600">{stats.kpi.trips.cancelled}</strong></span>
-                  <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-bold">
-                    {stats.kpi.trips.cancel_rate_percent}% hủy
+                }
+              />
+
+              <StatCard
+                label="Lượt phục vụ"
+                value={stats.kpi.impact.total_passengers_served}
+                icon={<Users className="w-5 h-5" />}
+                accent="emerald"
+                subtext={
+                  <span>
+                    Tổng yêu cầu: <strong className="text-slate-700">{stats.kpi.requests.total}</strong> (
+                    {stats.kpi.requests.completed} hoàn thành)
                   </span>
-                </div>
-              </div>
+                }
+              />
 
-              {/* Card 2: Lượt phục vụ */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lượt phục vụ</span>
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <Users className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="text-3xl font-black text-emerald-950">
-                  {stats.kpi.impact.total_passengers_served}
-                </div>
-                <div className="pt-2 border-t border-slate-100 text-xs text-slate-500">
-                  Tổng yêu cầu: <strong className="text-slate-700">{stats.kpi.requests.total}</strong> ({stats.kpi.requests.completed} thành công)
-                </div>
-              </div>
+              <StatCard
+                label="Quãng đường kết nối"
+                value={`${(stats.kpi.impact.total_distance_km || 0).toLocaleString('vi-VN')} km`}
+                icon={<Route className="w-5 h-5" />}
+                accent="emerald"
+                subtext={
+                  <span>
+                    Tỷ lệ hoàn thành chuyến:{' '}
+                    <strong className="text-emerald-700">
+                      {stats.kpi.trips.completion_rate_percent ?? 0}%
+                    </strong>
+                  </span>
+                }
+              />
 
-              {/* Card 3: Chi phí chia sẻ */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hỗ trợ Nhiên liệu/Sạc</span>
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                    <Fuel className="w-5 h-5" />
+              <StatCard
+                label="Sự cố & Khiếu nại"
+                value={stats.kpi.incidents.total}
+                icon={<AlertTriangle className="w-5 h-5" />}
+                accent="rose"
+                subtext={
+                  <div className="flex items-center justify-between">
+                    <span>
+                      Đã xử lý: <strong className="text-emerald-700">{stats.kpi.incidents.resolved}</strong>
+                    </span>
+                    <span>
+                      Đang xử lý: <strong className="text-sky-700">{stats.kpi.incidents.processing}</strong>
+                    </span>
+                    <span>
+                      Chờ: <strong className="text-rose-600">{stats.kpi.incidents.not_received}</strong>
+                    </span>
                   </div>
-                </div>
-                <div className="text-2xl font-black text-amber-950 truncate">
-                  {stats.kpi.impact.total_shared_fuel_cost.toLocaleString('vi-VN')} đ
-                </div>
-                <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 flex items-center">
-                  <Zap className="w-3.5 h-3.5 mr-1 text-cyan-600" />
-                  Đã tự nguyện chia sẻ qua hệ thống
-                </div>
-              </div>
-
-              {/* Card 4: Sự cố */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sự cố & Khiếu nại</span>
-                  <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="text-3xl font-black text-slate-900">{stats.kpi.incidents.total}</div>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span>Đã xử lý: <strong className="text-emerald-700">{stats.kpi.incidents.resolved}</strong></span>
-                  <span>Đang xử lý: <strong className="text-blue-700">{stats.kpi.incidents.processing}</strong></span>
-                  <span>Chờ: <strong className="text-rose-600">{stats.kpi.incidents.not_received}</strong></span>
-                </div>
-              </div>
+                }
+              />
             </div>
 
-            {/* Biểu đồ phân rã theo ngày */}
+            {/* Biểu đồ phân rã theo ngày bằng Recharts */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2 text-emerald-600" />
-                    Biểu đồ Hoạt động Chuyến xe theo Ngày
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Thống kê tỷ lệ hoàn thành, hủy chuyến và số khách thực tế từng ngày trong chu kỳ.
-                  </p>
-                </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2 text-emerald-600" />
+                  Biểu đồ hoạt động chuyến xe theo ngày
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Thống kê số chuyến hoàn thành, đang di chuyển và đã hủy theo múi giờ Việt Nam.
+                </p>
               </div>
 
-              {stats.daily_breakdown.length === 0 ? (
+              {chartData.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-400">
                   Không có chuyến xe nào trong khoảng thời gian này.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {stats.daily_breakdown.map((day) => {
-                    const completedRate = day.total > 0 ? (day.completed / day.total) * 100 : 0;
-                    const cancelledRate = day.total > 0 ? (day.cancelled / day.total) * 100 : 0;
-
-                    return (
-                      <div
-                        key={day.date}
-                        className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs"
-                      >
-                        <div className="w-32 flex-shrink-0 font-bold text-slate-800 flex items-center">
-                          <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                          {day.date}
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="flex-1 bg-slate-200 h-3 rounded-full overflow-hidden flex">
-                          <div
-                            style={{ width: `${completedRate}%` }}
-                            className="bg-emerald-500 h-full"
-                            title={`Hoàn thành: ${day.completed}`}
-                          />
-                          <div
-                            style={{ width: `${cancelledRate}%` }}
-                            className="bg-rose-500 h-full"
-                            title={`Hủy: ${day.cancelled}`}
-                          />
-                        </div>
-
-                        <div className="flex items-center space-x-4 text-slate-600 flex-shrink-0 text-[11px]">
-                          <span>
-                            Tổng: <strong>{day.total}</strong>
-                          </span>
-                          <span className="text-emerald-700 font-semibold">
-                            ✓ {day.completed}
-                          </span>
-                          <span className="text-rose-600 font-semibold">
-                            ✗ {day.cancelled}
-                          </span>
-                          <span className="text-slate-500">
-                            👥 {day.passengers} khách
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="shortDate" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: '1px solid #e2e8f0',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Bar dataKey="completed" name="Hoàn thành" fill="#059669" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="in_progress" name="Đang di chuyển" fill="#0284c7" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="cancelled" name="Đã hủy" fill="#e11d48" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </div>
@@ -318,12 +268,12 @@ export const TripStatistics: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center">
+                  <h2 className="text-base font-bold text-slate-900 flex items-center">
                     <Search className="w-5 h-5 mr-2 text-emerald-600" />
-                    Danh sách Chuyến xe Chi tiết theo Ngày
-                  </h3>
+                    Danh sách chuyến xe theo ngày
+                  </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Tra cứu và kiểm toán các chuyến xe hoạt động trong ngày đã chọn.
+                    Tra cứu chi tiết các chuyến xe khởi hành trong ngày đã chọn.
                   </p>
                 </div>
 
@@ -347,7 +297,8 @@ export const TripStatistics: React.FC = () => {
                   >
                     <option value="">Tất cả trạng thái</option>
                     <option value="OPEN">Đang nhận khách</option>
-                    <option value="IN_PROGRESS">Đang chạy</option>
+                    <option value="CLOSED">Đã chốt chuyến</option>
+                    <option value="IN_PROGRESS">Đang di chuyển</option>
                     <option value="COMPLETED">Hoàn thành</option>
                     <option value="CANCELLED">Đã hủy</option>
                   </select>
@@ -373,14 +324,14 @@ export const TripStatistics: React.FC = () => {
                         <th className="py-3 px-3">Tài xế & Xe</th>
                         <th className="py-3 px-3">Lộ trình</th>
                         <th className="py-3 px-3 text-center">Ghế nhận</th>
-                        <th className="py-3 px-3">Chi phí nhiên liệu</th>
+                        <th className="py-3 px-3 text-right">Quãng đường</th>
                         <th className="py-3 px-3 text-right">Trạng thái</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {trips.map((t) => (
                         <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3 px-3 font-bold text-slate-900">{t.code}</td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900">{t.code}</td>
                           <td className="py-3 px-3 text-slate-600">
                             {new Date(t.departure_time).toLocaleTimeString('vi-VN', {
                               hour: '2-digit',
@@ -389,7 +340,7 @@ export const TripStatistics: React.FC = () => {
                           </td>
                           <td className="py-3 px-3">
                             <div className="font-semibold text-slate-800">{t.driver?.full_name}</div>
-                            <div className="text-[11px] text-slate-400 flex items-center">
+                            <div className="text-[11px] text-slate-400">
                               {t.vehicle?.brand_model} • {t.vehicle?.plate_number}
                             </div>
                           </td>
@@ -400,10 +351,12 @@ export const TripStatistics: React.FC = () => {
                           <td className="py-3 px-3 text-center font-bold text-slate-800">
                             {t.seats_reserved}/{t.seats_total}
                           </td>
-                          <td className="py-3 px-3 font-semibold text-emerald-800">
-                            {t.estimated_fuel_cost ? `${t.estimated_fuel_cost.toLocaleString('vi-VN')} đ` : '0 đ'}
+                          <td className="py-3 px-3 text-right font-semibold text-slate-700">
+                            {t.distance_km ? `${t.distance_km.toFixed(1)} km` : '—'}
                           </td>
-                          <td className="py-3 px-3 text-right">{getTripStatusBadge(t.status)}</td>
+                          <td className="py-3 px-3 text-right">
+                            <TripStatusBadge status={t.status} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -411,22 +364,25 @@ export const TripStatistics: React.FC = () => {
                 </div>
               )}
 
-              {/* Trip Pagination */}
               {tripTotalPages > 1 && (
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span>Trang {tripPage} / {tripTotalPages}</span>
+                  <span>
+                    Trang {tripPage} / {tripTotalPages}
+                  </span>
                   <div className="space-x-1">
                     <button
+                      type="button"
                       disabled={tripPage <= 1}
                       onClick={() => setTripPage((p) => Math.max(1, p - 1))}
-                      className="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-40"
+                      className="px-3 py-1 border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40"
                     >
                       Trước
                     </button>
                     <button
+                      type="button"
                       disabled={tripPage >= tripTotalPages}
                       onClick={() => setTripPage((p) => Math.min(tripTotalPages, p + 1))}
-                      className="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-40"
+                      className="px-3 py-1 border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40"
                     >
                       Sau
                     </button>

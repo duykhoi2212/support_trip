@@ -222,7 +222,7 @@ export const SearchTrips: React.FC = () => {
             <span>GoX – Kết nối hành trình, tối ưu chuyến đi</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">
-            Tìm chuyến xe đi nhờ & gửi đồ tiện lợi
+            Tìm chuyến xe đi nhờ & gửi hàng
           </h1>
           <p className="text-emerald-100 text-sm sm:text-base leading-relaxed">
             Đi chung cùng tài xế xác thực, gửi kiện hàng nhanh gọn dọc lộ trình thực tế với công nghệ định tuyến đường bộ chuẩn xác.
@@ -260,7 +260,7 @@ export const SearchTrips: React.FC = () => {
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Tìm kiếm Gemini AI (US-02)</span>
+              <span>Tìm kiếm bằng AI</span>
             </button>
           </div>
 
@@ -342,7 +342,7 @@ export const SearchTrips: React.FC = () => {
                     <div className="flex items-center space-x-2">
                       <Bot className={`w-4 h-4 ${aiResultMeta.is_fallback ? 'text-amber-600' : 'text-purple-600'}`} />
                       <span className="text-xs font-bold uppercase tracking-wider">
-                        {aiResultMeta.is_fallback ? 'Bộ phân tích dự phòng thông minh (CS-05)' : 'Gemini AI đã thấu hiểu yêu cầu'}
+                        {aiResultMeta.is_fallback ? 'Kết quả phân tích yêu cầu' : 'Trợ lý AI đã hiểu yêu cầu của bạn'}
                       </span>
                     </div>
                     <p className="text-xs font-medium leading-relaxed">

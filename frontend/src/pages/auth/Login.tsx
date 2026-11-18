@@ -23,11 +23,11 @@ export const Login = () => {
       const data = await authService.login({ identifier, password, role });
       login(data.token, data.user);
 
-      // Điều hướng tương ứng với vai trò
+      // Điều hướng tương ứng với vai trò (USER giữ nguyên mặc định Tìm chuyến xe)
       if (data.user.role === 'DRIVER') {
-        navigate('/driver/trips');
+        navigate('/driver/dashboard');
       } else if (data.user.role === 'ADMIN') {
-        navigate('/admin/users');
+        navigate('/admin/dashboard');
       } else {
         navigate('/');
       }

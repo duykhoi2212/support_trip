@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import { toast } from 'sonner';
+import { AccountStatusBadge } from '../../components/common/StatusBadge';
 import { Camera, Lock, User as UserIcon, Shield, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/authService';
@@ -82,7 +84,7 @@ export const Profile = () => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Kích thước ảnh không được vượt quá 5 MB.');
+      toast.error('Kích thước ảnh không được vượt quá 5 MB.');
       return;
     }
 
@@ -91,9 +93,9 @@ export const Profile = () => {
       const updated = await authService.updateAvatar(file);
       updateUser(updated);
       setImgError(false);
-      alert('Cập nhật ảnh đại diện thành công!');
+      toast.success('Cập nhật ảnh đại diện thành công!');
     } catch (err: any) {
-      alert(err.message || 'Tải ảnh đại diện thất bại.');
+      toast.error(err.message || 'Tải ảnh đại diện thất bại.');
     } finally {
       setAvatarLoading(false);
     }
@@ -155,9 +157,9 @@ export const Profile = () => {
             <div>
               <span className="font-semibold text-slate-900">Số điện thoại:</span> {user.phone}
             </div>
-            <div>
-              <span className="font-semibold text-slate-900">Trạng thái:</span>{' '}
-              <span className="text-emerald-600 font-bold">{user.status}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-slate-900">Trạng thái:</span>
+              <AccountStatusBadge status={user.status} />
             </div>
             <div>
               <span className="font-semibold text-slate-900">Ngày tham gia:</span>{' '}

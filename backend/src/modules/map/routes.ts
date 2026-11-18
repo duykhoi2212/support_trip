@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { mapAdapter } from '../../adapters/map/ors.js';
+import { authenticateToken } from '../../middlewares/auth.js';
 
 export const mapRouter = Router();
 
@@ -15,7 +16,7 @@ const routeRequestSchema = z.object({
   }),
 });
 
-mapRouter.post('/route', async (req: Request, res: Response, next: NextFunction) => {
+mapRouter.post('/route', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = routeRequestSchema.parse(req.body);
     const result = await mapAdapter.getRoute(validated.origin, validated.destination);

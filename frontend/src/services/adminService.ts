@@ -1,5 +1,6 @@
 import { api } from './api';
 import {
+  AdminDashboardData,
   AdminUser,
   AdminUserDetail,
   AdminIncident,
@@ -66,6 +67,11 @@ export interface GetTripsResponse {
 }
 
 export const adminService = {
+  async getDashboard(): Promise<AdminDashboardData> {
+    const response = await api.get('/admin/dashboard');
+    return response.data.data;
+  },
+
   // AD-01: Quản lý, xem chi tiết, khóa và mở khóa tài khoản
   async getUsers(params?: GetUsersParams): Promise<GetUsersResponse> {
     const response = await api.get('/admin/users', { params });

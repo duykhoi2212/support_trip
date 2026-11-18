@@ -41,8 +41,9 @@ export class GeminiAdapter {
       const dayOfWeek = format(nowVn, 'eeee');
 
       const genAI = new GoogleGenerativeAI(apiKey);
+      const modelName = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: modelName,
         generationConfig: {
           temperature: 0.1,
           responseMimeType: 'application/json',

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { AdminService } from '../src/modules/admin/service.js';
 import { IncidentService } from '../src/modules/incident/service.js';
+import { TripService } from '../src/modules/trip/service.js';
+import { RequestService } from '../src/modules/request/service.js';
 import { prisma } from '../src/utils/prisma.js';
 import {
   user_role,
@@ -366,6 +368,40 @@ describe('Kiểm thử Chặng 3: Hệ thống Quản trị viên (Admin Dashboa
       expect(resolvedItem?.status).toBe(incident_status.RESOLVED);
       expect(resolvedItem?.result_note).toContain('nhắc nhở tài xế');
       expect(resolvedItem?.handler).not.toBeNull();
+    });
+  });
+
+  describe('5. Pre-Deployment Security & Dashboard APIs (3 Vai trò)', () => {
+    it('P0-01: TripService.getTripById công khai KHÔNG được trả về số điện thoại của tài xế', async () => {
+      const publicTrip = await TripService.getTripById(testTripId);
+      expect(publicTrip).toBeDefined();
+      expect((publicTrip.driver as any).phone).toBeUndefined();
+    });
+
+    it('Admin Dashboard API trả về đủ KPI người dùng, tài xế, chuyến, sự cố, 14 ngày & hoạt động gần đây', async () => {
+      const dash = await AdminService.getDashboard();
+      expect(dash.kpi.users.total).toBeGreaterThanOrEqual(3);
+      expect(dash.kpi.users.drivers).toBeGreaterThanOrEqual(1);
+      expect(dash.kpi.trips.total).toBeGreaterThanOrEqual(1);
+      expect(typeof dash.kpi.trips.total_distance_km).toBe('number');
+      expect(typeof dash.kpi.trips.completion_rate_percent).toBe('number');
+      expect(dash.daily_breakdown.length).toBe(14);
+      expect(Array.isArray(dash.recent_activities)).toBe(true);
+    });
+
+    it('Driver Dashboard API trả về đủ KPI chuyến xe, chuyến sắp khởi hành, yêu cầu chờ duyệt & đội xe', async () => {
+      const dash = await TripService.getDriverDashboard(testDriverId);
+      expect(dash.stats.total_trips).toBeGreaterThanOrEqual(1);
+      expect(dash.vehicles.length).toBeGreaterThanOrEqual(1);
+      expect(Array.isArray(dash.upcoming_trips)).toBe(true);
+      expect(Array.isArray(dash.pending_requests)).toBe(true);
+    });
+
+    it('User Dashboard API trả về đủ KPI yêu cầu, tỷ lệ hủy tuần CS-02 & yêu cầu gần đây', async () => {
+      const dash = await RequestService.getUserDashboard(lockedUserId);
+      expect(dash.stats.total_requests).toBeGreaterThanOrEqual(1);
+      expect(dash.cancellation).toBeDefined();
+      expect(dash.recent_requests.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Car,
   Bell,
@@ -12,18 +12,32 @@ import {
   ArrowRight,
   Clock,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  LayoutDashboard,
+  Menu,
+  X,
+  Search,
+  PlusCircle,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { notificationService } from '../../services/notificationService';
 import { Notification } from '../../types';
+import { RoleBadge } from './StatusBadge';
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: React.ReactNode;
+}
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [recentNotifs, setRecentNotifs] = useState<Notification[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
@@ -32,7 +46,6 @@ export const Navbar = () => {
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // Lấy số lượng thông báo chưa đọc
   const fetchUnreadCount = async () => {
     if (!user) return;
     try {
@@ -43,7 +56,6 @@ export const Navbar = () => {
     }
   };
 
-  // Lấy các thông báo mới khi mở dropdown
   const fetchRecentNotifs = async () => {
     if (!user) return;
     try {
@@ -60,16 +72,15 @@ export const Navbar = () => {
   useEffect(() => {
     if (!user) return;
     fetchUnreadCount();
-
-    // Polling định kỳ mỗi 20 giây
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, 20000);
-
+    const interval = setInterval(fetchUnreadCount, 20000);
     return () => clearInterval(interval);
   }, [user]);
 
-  // Đóng dropdown khi click bên ngoài
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setDropdownOpen(false);
+  }, [location.pathname]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -84,9 +95,7 @@ export const Navbar = () => {
   }, []);
 
   const handleToggleNotif = () => {
-    if (!notifOpen) {
-      fetchRecentNotifs();
-    }
+    if (!notifOpen) fetchRecentNotifs();
     setNotifOpen(!notifOpen);
     setDropdownOpen(false);
   };
@@ -108,13 +117,11 @@ export const Navbar = () => {
     }
     setNotifOpen(false);
 
-    // Nếu là thông báo cập nhật tiến trình xử lý sự cố từ Admin -> chuyển sang trang Theo dõi sự cố của tôi
     if (notif.type === 'INCIDENT_UPDATE' || notif.ref_type === 'INCIDENT') {
       navigate('/my-incidents');
       return;
     }
 
-    // Đối với tài xế: chuyển ngay sang trang điều hành chuyến xe để xử lý duyệt yêu cầu
     if (user?.role === 'DRIVER') {
       if (notif.ref_id) {
         navigate(`/driver/trips/${notif.ref_id}/manage`);
@@ -134,120 +141,104 @@ export const Navbar = () => {
   };
 
   const handleLogout = () => {
+    const wasAdmin = user?.role === 'ADMIN';
     logout();
-    navigate('/login');
+    navigate(wasAdmin ? '/admin/login' : '/login');
   };
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'ADMIN':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">
-            <Shield className="w-3 h-3 mr-1" /> Quản trị viên
-          </span>
-        );
-      case 'DRIVER':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
-            <Car className="w-3 h-3 mr-1" /> Tài xế
-          </span>
-        );
-      case 'USER':
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
-            <UserIcon className="w-3 h-3 mr-1" /> Người dùng
-          </span>
-        );
-    }
+  // Danh sách điều hướng chuẩn hóa theo từng vai trò
+  const navItems: NavItem[] = !user
+    ? [{ to: '/', label: 'Tìm chuyến xe', icon: <Search className="w-4 h-4" /> }]
+    : user.role === 'USER'
+    ? [
+        { to: '/', label: 'Tìm chuyến xe', icon: <Search className="w-4 h-4" /> },
+        { to: '/user/dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-4 h-4" /> },
+        { to: '/user/requests', label: 'Yêu cầu của tôi', icon: <Package className="w-4 h-4" /> },
+        { to: '/user/history', label: 'Lịch sử chuyến đi', icon: <Clock className="w-4 h-4" /> },
+        { to: '/my-incidents', label: 'Sự cố của tôi', icon: <AlertTriangle className="w-4 h-4" /> },
+      ]
+    : user.role === 'DRIVER'
+    ? [
+        { to: '/driver/dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-4 h-4" /> },
+        { to: '/driver/trips', label: 'Chuyến xe của tôi', icon: <Car className="w-4 h-4" /> },
+        { to: '/driver/trips/create', label: 'Đăng chuyến mới', icon: <PlusCircle className="w-4 h-4" /> },
+        { to: '/driver/vehicles', label: 'Phương tiện', icon: <Car className="w-4 h-4" /> },
+        { to: '/driver/history', label: 'Lịch sử chuyến xe', icon: <Clock className="w-4 h-4" /> },
+        { to: '/my-incidents', label: 'Sự cố của tôi', icon: <AlertTriangle className="w-4 h-4" /> },
+      ]
+    : [
+        { to: '/admin/dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-4 h-4" /> },
+        { to: '/admin/users', label: 'Quản lý tài khoản', icon: <Shield className="w-4 h-4" /> },
+        { to: '/admin/incidents', label: 'Quản lý sự cố', icon: <AlertTriangle className="w-4 h-4" /> },
+        { to: '/admin/statistics', label: 'Thống kê vận hành', icon: <BarChart3 className="w-4 h-4" /> },
+      ];
+
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/' || location.pathname === '/trips';
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
   };
+
+  const homePath =
+    user?.role === 'DRIVER'
+      ? '/driver/dashboard'
+      : user?.role === 'ADMIN'
+      ? '/admin/dashboard'
+      : '/';
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Logo GoX */}
-        <Link
-          to={user?.role === 'DRIVER' ? '/driver/trips' : user?.role === 'ADMIN' ? '/admin/users' : '/'}
-          className="flex items-center space-x-3 group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 transition-colors flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-            <Car className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="font-bold text-xl text-slate-900 tracking-tight block leading-tight">
-              GoX
-            </span>
-            <span className="text-xs text-slate-500 font-medium">
-              Kết nối hành trình – Tối ưu chuyến đi
-            </span>
-          </div>
-        </Link>
+    <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        {/* Mobile menu trigger + Logo */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Mở menu điều hướng"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
 
-        {/* Navigation Links theo Vai trò */}
-        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-600">
-          {/* USER hoặc Khách vãng lai: Tìm chuyến xe */}
-          {(!user || user.role === 'USER') && (
-            <Link to="/" className="hover:text-emerald-600 transition-colors">
-              Tìm chuyến xe
-            </Link>
-          )}
+          <Link to={homePath} className="flex items-center space-x-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 transition-colors flex items-center justify-center text-white shadow-sm">
+              <Car className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="font-bold text-lg text-slate-900 tracking-tight block leading-none">
+                GoX
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium hidden sm:block mt-0.5">
+                Kết nối hành trình – Tối ưu chuyến đi
+              </span>
+            </div>
+          </Link>
+        </div>
 
-          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi, Lịch sử chuyến đi & Báo cáo sự cố */}
-          {user?.role === 'USER' && (
-            <>
-              <Link to="/user/requests" className="hover:text-emerald-600 transition-colors">
-                Yêu cầu của tôi
+        {/* Desktop Navigation Links */}
+        <nav className="hidden lg:flex items-center space-x-1 text-sm font-medium">
+          {navItems.map((item) => {
+            const active = isActive(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`px-3 py-2 rounded-xl transition-colors ${
+                  active
+                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    : 'text-slate-600 hover:text-emerald-700 hover:bg-slate-50'
+                }`}
+              >
+                {item.label}
               </Link>
-              <Link to="/user/history" className="hover:text-emerald-600 transition-colors">
-                Lịch sử chuyến đi
-              </Link>
-              <Link to="/my-incidents" className="hover:text-emerald-600 transition-colors">
-                Sự cố của tôi
-              </Link>
-            </>
-          )}
-
-          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện, Lịch sử & Sự cố */}
-          {user?.role === 'DRIVER' && (
-            <>
-              <Link to="/driver/trips" className="hover:text-emerald-600 transition-colors font-semibold">
-                Chuyến xe của tôi
-              </Link>
-              <Link to="/driver/trips/create" className="hover:text-emerald-600 transition-colors font-semibold">
-                Đăng chuyến mới
-              </Link>
-              <Link to="/driver/vehicles" className="hover:text-emerald-600 transition-colors font-semibold">
-                Phương tiện
-              </Link>
-              <Link to="/driver/history" className="hover:text-emerald-600 transition-colors font-semibold">
-                Lịch sử chuyến
-              </Link>
-              <Link to="/my-incidents" className="hover:text-emerald-600 transition-colors font-semibold">
-                Sự cố của tôi
-              </Link>
-            </>
-          )}
-
-          {user?.role === 'ADMIN' && (
-            <>
-              <Link to="/admin/users" className="hover:text-emerald-600 transition-colors font-medium">
-                Quản lý tài khoản
-              </Link>
-              <Link to="/admin/incidents" className="hover:text-emerald-600 transition-colors font-medium">
-                Xử lý sự cố
-              </Link>
-              <Link to="/admin/statistics" className="hover:text-emerald-600 transition-colors font-medium">
-                Thống kê vận hành
-              </Link>
-            </>
-          )}
+            );
+          })}
         </nav>
 
-        {/* User Account / Auth Actions */}
-        <div className="flex items-center space-x-3">
+        {/* Right Actions */}
+        <div className="flex items-center space-x-2.5">
           {user ? (
             <>
-              {/* Notification Popover */}
+              {/* Notification Bell */}
               <div className="relative" ref={notifRef}>
                 <button
                   type="button"
@@ -257,24 +248,16 @@ export const Navbar = () => {
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[18px] text-[10px] font-bold bg-rose-500 text-white rounded-full flex items-center justify-center ring-2 ring-white animate-pulse">
+                    <span className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[18px] text-[10px] font-bold bg-rose-500 text-white rounded-full flex items-center justify-center ring-2 ring-white">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   )}
                 </button>
 
-                {/* Dropdown thông báo */}
                 {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-slate-900 text-sm">Thông báo</span>
-                        {unreadCount > 0 && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold bg-rose-100 text-rose-700 rounded-full">
-                            {unreadCount} mới
-                          </span>
-                        )}
-                      </div>
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                      <span className="font-bold text-sm text-slate-900">Thông báo</span>
                       {unreadCount > 0 && (
                         <button
                           type="button"
@@ -282,64 +265,55 @@ export const Navbar = () => {
                           className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center space-x-1"
                         >
                           <CheckCheck className="w-3.5 h-3.5" />
-                          <span>Đã đọc hết</span>
+                          <span>Đọc tất cả</span>
                         </button>
                       )}
                     </div>
 
                     <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                       {loadingNotifs ? (
-                        <div className="p-6 text-center text-xs text-slate-400">
+                        <div className="py-8 text-center text-xs text-slate-400">
                           Đang tải thông báo...
                         </div>
                       ) : recentNotifs.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-400">
-                          Bạn chưa có thông báo nào.
+                        <div className="py-8 text-center text-xs text-slate-400">
+                          Chưa có thông báo nào.
                         </div>
                       ) : (
                         recentNotifs.map((n) => (
-                          <div
+                          <button
                             key={n.id}
+                            type="button"
                             onClick={() => handleNotifItemClick(n)}
-                            className={`p-3 text-left hover:bg-slate-50 cursor-pointer transition-colors flex items-start space-x-3 ${
-                              !n.is_read ? 'bg-emerald-50/50' : ''
+                            className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start space-x-3 ${
+                              !n.is_read ? 'bg-emerald-50/40' : ''
                             }`}
                           >
-                            <div className="mt-0.5">
-                              {!n.is_read ? (
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 block"></span>
-                              ) : (
-                                <span className="w-2 h-2 rounded-full bg-slate-300 block"></span>
-                              )}
-                            </div>
+                            <div
+                              className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                                !n.is_read ? 'bg-emerald-600' : 'bg-transparent'
+                              }`}
+                            />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs text-slate-800 line-clamp-2 leading-relaxed">
+                              <p className={`text-xs leading-relaxed ${!n.is_read ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>
                                 {n.content}
                               </p>
                               <span className="text-[10px] text-slate-400 mt-1 block">
-                                {new Date(n.created_at).toLocaleTimeString('vi-VN', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                })}
+                                {new Date(n.created_at).toLocaleString('vi-VN')}
                               </span>
                             </div>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
 
-                    <div className="p-2 border-t border-slate-100 bg-slate-50/50 text-center">
-                      <Link
-                        to="/notifications"
-                        onClick={() => setNotifOpen(false)}
-                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center space-x-1"
-                      >
-                        <span>Xem toàn bộ thông báo</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
+                    <Link
+                      to="/notifications"
+                      onClick={() => setNotifOpen(false)}
+                      className="block px-4 py-2.5 text-center text-xs font-semibold text-emerald-700 bg-slate-50 hover:bg-emerald-50 border-t border-slate-100 transition-colors"
+                    >
+                      Xem tất cả thông báo <ArrowRight className="w-3 h-3 inline ml-0.5" />
+                    </Link>
                   </div>
                 )}
               </div>
@@ -347,10 +321,14 @@ export const Navbar = () => {
               {/* Profile Dropdown */}
               <div className="relative" ref={profileRef}>
                 <button
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors text-left"
+                  type="button"
+                  onClick={() => {
+                    setDropdownOpen(!dropdownOpen);
+                    setNotifOpen(false);
+                  }}
+                  className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm overflow-hidden border border-emerald-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs overflow-hidden border border-emerald-200">
                     {user.avatar_url && !navImgError ? (
                       <img
                         src={user.avatar_url}
@@ -362,24 +340,27 @@ export const Navbar = () => {
                       user.full_name.charAt(0).toUpperCase()
                     )}
                   </div>
-                  <div className="hidden sm:block">
-                    <div className="text-xs font-semibold text-slate-900 leading-tight">
+                  <div className="hidden sm:block text-left">
+                    <div className="text-xs font-semibold text-slate-900 leading-tight max-w-[120px] truncate">
                       {user.full_name}
                     </div>
-                    <div className="mt-0.5">{getRoleBadge(user.role)}</div>
+                    <div className="mt-0.5">
+                      <RoleBadge role={user.role} />
+                    </div>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                  <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
                 </button>
 
-                {/* Dropdown Menu */}
                 {dropdownOpen && (
                   <div
-                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <div className="px-4 py-2 border-b border-slate-100 sm:hidden">
                       <div className="font-semibold text-slate-900 text-sm">{user.full_name}</div>
-                      <div className="mt-1">{getRoleBadge(user.role)}</div>
+                      <div className="mt-1">
+                        <RoleBadge role={user.role} />
+                      </div>
                     </div>
 
                     <Link
@@ -390,92 +371,23 @@ export const Navbar = () => {
                       <span>Thông tin tài khoản</span>
                     </Link>
 
-                    {user.role === 'USER' && (
-                      <>
-                        <Link
-                          to="/user/requests"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Package className="w-4 h-4" />
-                          <span>Yêu cầu vận chuyển</span>
-                        </Link>
-                        <Link
-                          to="/user/history"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Clock className="w-4 h-4" />
-                          <span>Lịch sử chuyến đi</span>
-                        </Link>
-                        <Link
-                          to="/my-incidents"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                        >
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span>Báo cáo sự cố của tôi</span>
-                        </Link>
-                      </>
-                    )}
+                    <div className="border-t border-slate-100 my-1" />
 
-                    {user.role === 'DRIVER' && (
-                      <>
-                        <Link
-                          to="/driver/trips"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Car className="w-4 h-4" />
-                          <span>Chuyến xe của tôi</span>
-                        </Link>
-                        <Link
-                          to="/driver/vehicles"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Car className="w-4 h-4" />
-                          <span>Phương tiện</span>
-                        </Link>
-                        <Link
-                          to="/driver/history"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Clock className="w-4 h-4" />
-                          <span>Lịch sử chuyến xe</span>
-                        </Link>
-                        <Link
-                          to="/my-incidents"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
-                        >
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span>Báo cáo sự cố của tôi</span>
-                        </Link>
-                      </>
-                    )}
+                    {navItems.map((item) => (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className="flex items-center space-x-2 px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                      </Link>
+                    ))}
 
-                    {user.role === 'ADMIN' && (
-                      <>
-                        <Link
-                          to="/admin/users"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <Shield className="w-4 h-4 text-emerald-600" />
-                          <span>Quản lý tài khoản</span>
-                        </Link>
-                        <Link
-                          to="/admin/incidents"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span>Xử lý sự cố</span>
-                        </Link>
-                        <Link
-                          to="/admin/statistics"
-                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
-                        >
-                          <BarChart3 className="w-4 h-4 text-blue-600" />
-                          <span>Thống kê vận hành</span>
-                        </Link>
-                      </>
-                    )}
+                    <div className="border-t border-slate-100 my-1" />
 
                     <button
+                      type="button"
                       onClick={handleLogout}
                       className="w-full flex items-center space-x-2 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left"
                     >
@@ -487,7 +399,7 @@ export const Navbar = () => {
               </div>
             </>
           ) : (
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <Link
                 to="/login"
                 className="text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors px-3 py-2"
@@ -504,6 +416,30 @@ export const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* Mobile / Tablet Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-lg">
+          {navItems.map((item) => {
+            const active = isActive(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors ${
+                  active
+                    ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 };

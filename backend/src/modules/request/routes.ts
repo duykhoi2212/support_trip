@@ -8,12 +8,13 @@ const router = Router();
 
 router.use(authenticateToken);
 
-// 1. Chức năng Người dùng (User)
-router.post('/ride', RequestController.createRide);
-router.post('/package', uploadImage.single('photo'), RequestController.createPackage);
-router.get('/mine', RequestController.getMine);
-router.get('/history', RequestController.getUserHistory);
-router.post('/:id/cancel', RequestController.cancel);
+// 1. Chức năng Người dùng (User) - Bắt buộc đúng vai trò USER
+router.get('/dashboard', requireRole([user_role.USER]), RequestController.getUserDashboard);
+router.post('/ride', requireRole([user_role.USER]), RequestController.createRide);
+router.post('/package', requireRole([user_role.USER]), uploadImage.single('photo'), RequestController.createPackage);
+router.get('/mine', requireRole([user_role.USER]), RequestController.getMine);
+router.get('/history', requireRole([user_role.USER]), RequestController.getUserHistory);
+router.post('/:id/cancel', requireRole([user_role.USER]), RequestController.cancel);
 
 // 2. Chức năng Tài xế (Driver)
 router.get('/trip/:tripId', requireRole([user_role.DRIVER]), RequestController.getTripRequests);

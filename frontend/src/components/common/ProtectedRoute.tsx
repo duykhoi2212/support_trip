@@ -1,7 +1,8 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+import { getRoleLabel } from '../../lib/formatters';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -32,14 +33,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-2">Truy cập bị từ chối</h2>
           <p className="text-sm text-slate-600 mb-6">
-            Bạn không có quyền truy cập vào chức năng này với vai trò hiện tại ({user.role}).
+            Bạn không có quyền truy cập vào chức năng này với vai trò hiện tại ({getRoleLabel(user.role)}).
           </p>
-          <a
-            href="/"
-            className="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors"
+          <Link
+            to="/"
+            className="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors"
           >
             Quay về trang chủ
-          </a>
+          </Link>
         </div>
       </div>
     );
