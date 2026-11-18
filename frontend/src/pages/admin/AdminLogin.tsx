@@ -39,13 +39,6 @@ export const AdminLogin: React.FC = () => {
     }
   };
 
-  // Nút tiện ích điền nhanh tài khoản Seed để kiểm thử và bảo vệ đồ án
-  const fillDemoAdmin = () => {
-    setIdentifier('admin@example.com');
-    setPassword('Password@123');
-    setError(null);
-  };
-
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-900 text-slate-100">
       <div className="max-w-md w-full space-y-8 bg-slate-800 p-8 sm:p-10 rounded-3xl border border-slate-700 shadow-2xl relative">
@@ -91,7 +84,7 @@ export const AdminLogin: React.FC = () => {
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="admin@example.com hoặc 0901000001"
+                placeholder="Nhập email hoặc số điện thoại quản trị"
                 className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
               />
             </div>
@@ -135,27 +128,8 @@ export const AdminLogin: React.FC = () => {
           </button>
         </form>
 
-        {/* Tiện ích Demo chỉ hiển thị ở môi trường phát triển (ẩn hoàn toàn trên Production) */}
-        {import.meta.env.DEV && (
-          <div className="pt-4 border-t border-slate-700/60">
-            <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between text-xs">
-              <div className="text-slate-400">
-                <span className="font-semibold text-slate-300">Tài khoản mẫu (Dev):</span>
-                <div className="text-[11px] text-slate-500">admin@example.com / Password@123</div>
-              </div>
-              <button
-                type="button"
-                onClick={fillDemoAdmin}
-                className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold rounded-lg text-xs transition-colors"
-              >
-                Điền nhanh
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Liên kết quay lại Login Người dùng */}
-        <div className="text-center pt-2">
+        <div className="text-center pt-4 border-t border-slate-700/60">
           <Link
             to="/login"
             className="text-xs text-slate-400 hover:text-slate-200 transition-colors"

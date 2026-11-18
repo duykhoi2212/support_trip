@@ -146,7 +146,7 @@ export const Navbar = () => {
     navigate(wasAdmin ? '/admin/login' : '/login');
   };
 
-  // Danh sách điều hướng chuẩn hóa theo từng vai trò
+  // Danh sách điều hướng chuẩn hóa theo từng vai trò (ngắn gọn, hiển thị đều 1 hàng)
   const navItems: NavItem[] = !user
     ? [{ to: '/', label: 'Tìm chuyến xe', icon: <Search className="w-4 h-4" /> }]
     : user.role === 'USER'
@@ -160,8 +160,8 @@ export const Navbar = () => {
     : user.role === 'DRIVER'
     ? [
         { to: '/driver/dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-4 h-4" /> },
-        { to: '/driver/trips', label: 'Chuyến xe của tôi', icon: <Car className="w-4 h-4" /> },
-        { to: '/driver/trips/create', label: 'Đăng chuyến mới', icon: <PlusCircle className="w-4 h-4" /> },
+        { to: '/driver/trips', label: 'Chuyến xe', icon: <Car className="w-4 h-4" /> },
+        { to: '/driver/trips/create', label: 'Đăng chuyến', icon: <PlusCircle className="w-4 h-4" /> },
         { to: '/driver/vehicles', label: 'Phương tiện', icon: <Car className="w-4 h-4" /> },
         { to: '/driver/history', label: 'Lịch sử chuyến xe', icon: <Clock className="w-4 h-4" /> },
         { to: '/my-incidents', label: 'Sự cố của tôi', icon: <AlertTriangle className="w-4 h-4" /> },
@@ -175,6 +175,12 @@ export const Navbar = () => {
 
   const isActive = (to: string) => {
     if (to === '/') return location.pathname === '/' || location.pathname === '/trips';
+    if (to === '/driver/trips') {
+      return (
+        location.pathname === '/driver/trips' ||
+        (location.pathname.startsWith('/driver/trips/') && !location.pathname.startsWith('/driver/trips/create'))
+      );
+    }
     return location.pathname === to || location.pathname.startsWith(`${to}/`);
   };
 
@@ -187,9 +193,9 @@ export const Navbar = () => {
 
   return (
     <header className="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Mobile menu trigger + Logo */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-shrink-0">
           <button
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
@@ -199,30 +205,33 @@ export const Navbar = () => {
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link to={homePath} className="flex items-center space-x-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 transition-colors flex items-center justify-center text-white shadow-sm">
+          <Link
+            to={homePath}
+            className="flex items-center space-x-2.5 group rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 transition-colors flex items-center justify-center text-white shadow-sm flex-shrink-0">
               <Car className="w-5 h-5" />
             </div>
-            <div>
-              <span className="font-bold text-lg text-slate-900 tracking-tight block leading-none">
+            <div className="leading-tight">
+              <span className="font-bold text-lg text-slate-900 tracking-tight block whitespace-nowrap">
                 GoX
               </span>
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:block mt-0.5">
+              <span className="text-[11px] text-slate-500 font-medium hidden xl:block whitespace-nowrap">
                 Kết nối hành trình – Tối ưu chuyến đi
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center space-x-1 text-sm font-medium">
+        {/* Desktop Navigation Links - Luôn nằm gọn trên 1 hàng đều đặn */}
+        <nav className="hidden lg:flex items-center justify-center gap-1 xl:gap-1.5 text-[13px] xl:text-sm font-medium min-w-0">
           {navItems.map((item) => {
             const active = isActive(item.to);
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                className={`px-3 py-2 rounded-xl transition-colors ${
+                className={`px-2.5 xl:px-3.5 py-2 rounded-xl whitespace-nowrap transition-colors ${
                   active
                     ? 'bg-emerald-50 text-emerald-700 font-semibold'
                     : 'text-slate-600 hover:text-emerald-700 hover:bg-slate-50'
@@ -235,7 +244,7 @@ export const Navbar = () => {
         </nav>
 
         {/* Right Actions */}
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           {user ? (
             <>
               {/* Notification Bell */}
