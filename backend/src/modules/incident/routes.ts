@@ -7,3 +7,4 @@ export const incidentRouter = Router();
 incidentRouter.use(authenticateToken);
 
 incidentRouter.post('/', IncidentController.report);
+incidentRouter.get('/my', IncidentController.getMyIncidents);

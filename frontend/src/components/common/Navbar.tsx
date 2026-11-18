@@ -108,6 +108,12 @@ export const Navbar = () => {
     }
     setNotifOpen(false);
 
+    // Nếu là thông báo cập nhật tiến trình xử lý sự cố từ Admin -> chuyển sang trang Theo dõi sự cố của tôi
+    if (notif.type === 'INCIDENT_UPDATE' || notif.ref_type === 'INCIDENT') {
+      navigate('/my-incidents');
+      return;
+    }
+
     // Đối với tài xế: chuyển ngay sang trang điều hành chuyến xe để xử lý duyệt yêu cầu
     if (user?.role === 'DRIVER') {
       if (notif.ref_id) {
@@ -186,7 +192,7 @@ export const Navbar = () => {
             </Link>
           )}
 
-          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi & Lịch sử chuyến đi */}
+          {/* CHỈ DÀNH CHO USER: Yêu cầu của tôi, Lịch sử chuyến đi & Báo cáo sự cố */}
           {user?.role === 'USER' && (
             <>
               <Link to="/user/requests" className="hover:text-emerald-600 transition-colors">
@@ -195,10 +201,13 @@ export const Navbar = () => {
               <Link to="/user/history" className="hover:text-emerald-600 transition-colors">
                 Lịch sử chuyến đi
               </Link>
+              <Link to="/my-incidents" className="hover:text-emerald-600 transition-colors">
+                Sự cố của tôi
+              </Link>
             </>
           )}
 
-          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện, Lịch sử */}
+          {/* DÀNH CHO TÀI XẾ: Chuyến xe của tôi, Đăng chuyến mới, Phương tiện, Lịch sử & Sự cố */}
           {user?.role === 'DRIVER' && (
             <>
               <Link to="/driver/trips" className="hover:text-emerald-600 transition-colors font-semibold">
@@ -212,6 +221,9 @@ export const Navbar = () => {
               </Link>
               <Link to="/driver/history" className="hover:text-emerald-600 transition-colors font-semibold">
                 Lịch sử chuyến
+              </Link>
+              <Link to="/my-incidents" className="hover:text-emerald-600 transition-colors font-semibold">
+                Sự cố của tôi
               </Link>
             </>
           )}
@@ -394,6 +406,13 @@ export const Navbar = () => {
                           <Clock className="w-4 h-4" />
                           <span>Lịch sử chuyến đi</span>
                         </Link>
+                        <Link
+                          to="/my-incidents"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                        >
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          <span>Báo cáo sự cố của tôi</span>
+                        </Link>
                       </>
                     )}
 
@@ -419,6 +438,13 @@ export const Navbar = () => {
                         >
                           <Clock className="w-4 h-4" />
                           <span>Lịch sử chuyến xe</span>
+                        </Link>
+                        <Link
+                          to="/my-incidents"
+                          className="flex items-center space-x-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                        >
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          <span>Báo cáo sự cố của tôi</span>
                         </Link>
                       </>
                     )}

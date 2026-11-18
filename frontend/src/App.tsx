@@ -21,6 +21,7 @@ import { IncidentManagement } from './pages/admin/IncidentManagement';
 import { TripStatistics } from './pages/admin/TripStatistics';
 import { AdminLogin } from './pages/admin/AdminLogin';
 import { Notifications } from './pages/notification/Notifications';
+import { MyIncidents } from './pages/incident/MyIncidents';
 
 // Trang chủ thông minh theo vai trò
 const HomeRoute = () => {
@@ -86,6 +87,15 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Notifications />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/my-incidents"
+                element={
+                  <ProtectedRoute allowedRoles={['USER', 'DRIVER']}>
+                    <MyIncidents />
                   </ProtectedRoute>
                 }
               />

@@ -71,6 +71,12 @@ export const Notifications: React.FC = () => {
       await handleMarkAsRead(notif.id);
     }
 
+    // Nếu là thông báo cập nhật tiến trình xử lý sự cố từ Admin
+    if (notif.type === 'INCIDENT_UPDATE' || notif.ref_type === 'INCIDENT') {
+      navigate('/my-incidents');
+      return;
+    }
+
     // Đối với tài xế: chuyển ngay sang trang điều hành chuyến xe để xử lý duyệt yêu cầu
     if (user?.role === 'DRIVER') {
       if (notif.ref_id) {

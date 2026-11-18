@@ -298,4 +298,74 @@ describe('Kiểm thử Chặng 3: Hệ thống Quản trị viên (Admin Dashboa
       expect(trip?.vehicle.brand_model).toContain('VinFast');
     });
   });
+
+  describe('4. AD-Deep & Incident Tracking: Khóa tài khoản, Xem chi tiết, Lọc ngày sự cố & Người dùng theo dõi sự cố', () => {
+    it('Admin xem chi tiết thông tin tài khoản (Hồ sơ, thống kê, tỷ lệ hủy tuần, audit logs)', async () => {
+      const detail = await AdminService.getUserDetail(lockedUserId);
+      expect(detail.id).toBe(lockedUserId.toString());
+      expect(detail.stats).toBeDefined();
+      expect(detail.cancellation).toBeDefined();
+      expect(detail.audit_logs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('Admin khóa tài khoản thủ công (LOCKED_TEMP) kèm lý do, tạo AuditLog và gửi thông báo cho User', async () => {
+      const lockReason = 'Tài khoản vi phạm nội quy nhiều lần qua phản ánh trực tiếp từ tài xế.';
+      const res = await AdminService.lockUser(adminId, lockedUserId, {
+        lock_type: 'LOCKED_TEMP',
+        duration_days: 7,
+        reason: lockReason,
+      });
+
+      expect(res.user.status).toBe(account_status.LOCKED_TEMP);
+      expect(res.user.locked_until).not.toBeNull();
+      expect(res.audit_log.action).toBe('LOCK_ACCOUNT');
+      expect(res.audit_log.reason).toContain(lockReason);
+
+      const notif = await prisma.notification.findFirst({
+        where: { user_id: lockedUserId, type: 'ACCOUNT_LOCKED' },
+        orderBy: { created_at: 'desc' },
+      });
+      expect(notif).not.toBeNull();
+      expect(notif?.content).toContain(lockReason);
+
+      // Chặn tự khóa chính Admin
+      await expect(
+        AdminService.lockUser(adminId, adminId, {
+          lock_type: 'LOCKED_PERM',
+          reason: 'Thử tự khóa chính mình sẽ bị chặn',
+        })
+      ).rejects.toThrow(/chính mình/);
+    });
+
+    it('Admin lọc sự cố theo dải ngày & từ khóa, và xem chi tiết chuyến xe gắn với sự cố', async () => {
+      const futureRes = await AdminService.getIncidents({
+        from_date: '2030-01-01',
+      });
+      expect(futureRes.incidents.length).toBe(0);
+
+      const searchRes = await AdminService.getIncidents({
+        search: 'đón muộn',
+      });
+      expect(searchRes.incidents.some((i) => i.id === testIncidentId.toString())).toBe(true);
+
+      const tripDetail = await AdminService.getTripDetail(testTripId);
+      expect(tripDetail.id).toBe(testTripId.toString());
+      expect(tripDetail.driver).toBeDefined();
+      expect(tripDetail.vehicle).toBeDefined();
+      expect(tripDetail.transport_requests.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('Người dùng xem được danh sách báo cáo sự cố của mình kèm tiến độ xử lý & ghi chú từ Admin', async () => {
+      const myInc = await IncidentService.getMyIncidents(lockedUserId);
+      expect(myInc.incidents.length).toBeGreaterThanOrEqual(1);
+      expect(myInc.summary.total).toBeGreaterThanOrEqual(1);
+      expect(myInc.summary.resolved).toBeGreaterThanOrEqual(1);
+
+      const resolvedItem = myInc.incidents.find((i) => i.id === testIncidentId.toString());
+      expect(resolvedItem).toBeDefined();
+      expect(resolvedItem?.status).toBe(incident_status.RESOLVED);
+      expect(resolvedItem?.result_note).toContain('nhắc nhở tài xế');
+      expect(resolvedItem?.handler).not.toBeNull();
+    });
+  });
 });

@@ -11,6 +11,20 @@
 - 📋 **[Bảng theo dõi tiến độ chức năng (PROGRESS)](./docs/PROGRESS.md)**: Theo dõi trạng thái từng chức năng theo bảng mã `CM-01..04`, `DR-01..05`, `US-01..03`, `AD-01..03`, `CS-01..05` với ký hiệu trực quan `[x]` / `[ ]`.
 - 📐 **[Quy tắc hệ thống & Design System (RULES)](./docs/RULES.md)**: Quy định về mã nguồn, cấu trúc phản hồi tiếng Việt, bảo mật, bảng màu Tailwind và Font chữ.
 - 🏗️ **[Kiến trúc hệ thống (ARCHITECTURE)](./docs/ARCHITECTURE.md)**: Cấu trúc thư mục Monorepo chuẩn, phân tầng Modular Monolith.
+- 🐳 **[Hướng dẫn Đóng gói Docker & Triển khai VPS (DEPLOY_VPS)](./docs/DEPLOY_VPS.md)**: Hướng dẫn triển khai Docker Compose, Nginx Reverse Proxy, SSL Certbot và sao lưu CSDL tự động.
+
+---
+
+## ⚡ CHẠY NHANH VỚI DOCKER COMPOSE
+
+```bash
+cp .env.docker.example .env
+docker compose up -d --build
+```
+
+- Giao diện Người dùng & Tài xế: `http://localhost/`
+- Cổng Quản trị viên (Admin): `http://localhost/admin/login`
+- Kiểm tra API Health: `http://localhost/api/health`
 
 ---
 

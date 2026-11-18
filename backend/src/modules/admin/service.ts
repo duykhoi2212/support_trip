@@ -5,9 +5,12 @@ import {
   incident_status,
   trip_status,
   request_status,
+  actor_type,
+  fail_reason_code,
 } from '@prisma/client';
 import {
   unlockUserSchema,
+  lockUserSchema,
   updateIncidentStatusSchema,
   listUsersQuerySchema,
   listIncidentsQuerySchema,
@@ -15,6 +18,9 @@ import {
   tripsByDateQuerySchema,
 } from './schema.js';
 import { z } from 'zod';
+import { AppError } from '../../middlewares/errorHandler.js';
+import { calculateWeeklyCancellationRate } from '../../utils/cancellation.js';
+import { getCurrentWeekRangeVN } from '../scheduler/service.js';
 
 export class AdminService {
   /**
@@ -200,7 +206,284 @@ export class AdminService {
   }
 
   /**
-   * AD-02: Lấy danh sách toàn bộ sự cố trong hệ thống
+   * AD-01 (Nâng cao): Xem chi tiết toàn diện thông tin 1 tài khoản (Hồ sơ, xe, vi phạm, tỷ lệ hủy tuần, lịch sử khóa/mở khóa)
+   */
+  static async getUserDetail(targetUserId: bigint) {
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        full_name: true,
+        avatar_url: true,
+        role: true,
+        status: true,
+        locked_until: true,
+        created_at: true,
+        vehicles: {
+          orderBy: { created_at: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            brand_model: true,
+            plate_number: true,
+            seat_count: true,
+            cargo_area_m2: true,
+            cargo_max_kg: true,
+            fuel_type: true,
+            fuel_consumption: true,
+            photo_url: true,
+            status: true,
+            is_deleted: true,
+            created_at: true,
+          },
+        },
+        violations: {
+          orderBy: { created_at: 'desc' },
+          select: {
+            id: true,
+            week_start: true,
+            confirmed_count: true,
+            cancelled_count: true,
+            cancel_rate: true,
+            lock_type: true,
+            lock_until: true,
+            status: true,
+            revoked_at: true,
+            created_at: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'Không tìm thấy tài khoản người dùng.');
+    }
+
+    const [
+      totalTrips,
+      completedTrips,
+      cancelledTrips,
+      totalRequests,
+      completedRequests,
+      failedRequests,
+      incidentReportsCount,
+      auditLogs,
+    ] = await Promise.all([
+      prisma.trip.count({ where: { driver_id: targetUserId } }),
+      prisma.trip.count({ where: { driver_id: targetUserId, status: trip_status.COMPLETED } }),
+      prisma.trip.count({ where: { driver_id: targetUserId, status: trip_status.CANCELLED } }),
+      prisma.transportRequest.count({ where: { user_id: targetUserId } }),
+      prisma.transportRequest.count({ where: { user_id: targetUserId, status: request_status.COMPLETED } }),
+      prisma.transportRequest.count({ where: { user_id: targetUserId, status: request_status.FAILED } }),
+      prisma.incidentReport.count({ where: { reporter_id: targetUserId } }),
+      prisma.auditLog.findMany({
+        where: { target_type: 'USER', target_id: targetUserId },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+        include: {
+          actor: {
+            select: {
+              id: true,
+              full_name: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Tính tỷ lệ hủy tuần hiện tại (T2-CN giờ VN) cho USER
+    let cancellation = null;
+    if (user.role === user_role.USER) {
+      const { weekStart, weekEnd } = getCurrentWeekRangeVN();
+      const currentWeekRequests = await prisma.transportRequest.findMany({
+        where: {
+          user_id: targetUserId,
+          trip: {
+            departure_time: {
+              gte: weekStart,
+              lte: weekEnd,
+            },
+          },
+        },
+        select: {
+          status: true,
+          cancelled_by: true,
+          counts_toward_cancel_rate: true,
+          fail_reason_code: true,
+        },
+      });
+
+      let weekConfirmed = 0;
+      let weekCancelled = 0;
+      for (const r of currentWeekRequests) {
+        if (r.cancelled_by === actor_type.DRIVER) continue;
+        if (
+          r.status === request_status.PENDING ||
+          r.status === request_status.REJECTED ||
+          r.status === request_status.EXPIRED
+        ) {
+          continue;
+        }
+        weekConfirmed++;
+        if (
+          r.status === request_status.CANCELLED &&
+          r.cancelled_by === actor_type.USER &&
+          r.counts_toward_cancel_rate
+        ) {
+          weekCancelled++;
+        } else if (
+          r.status === request_status.FAILED &&
+          r.fail_reason_code &&
+          ([fail_reason_code.WRONG_INFO, fail_reason_code.UNREACHABLE, fail_reason_code.ABSENT] as fail_reason_code[]).includes(
+            r.fail_reason_code
+          )
+        ) {
+          weekCancelled++;
+        }
+      }
+
+      const rateRes = calculateWeeklyCancellationRate(weekConfirmed, weekCancelled);
+      cancellation = {
+        week_confirmed: weekConfirmed,
+        week_cancelled: weekCancelled,
+        week_rate: rateRes.rate,
+        is_violation: rateRes.isViolation,
+        total_violations: user.violations.length,
+      };
+    }
+
+    return {
+      ...user,
+      id: user.id.toString(),
+      vehicles: user.vehicles.map((v) => ({
+        ...v,
+        id: v.id.toString(),
+      })),
+      violations: user.violations.map((v) => ({
+        ...v,
+        id: v.id.toString(),
+      })),
+      audit_logs: auditLogs.map((log) => ({
+        ...log,
+        id: log.id.toString(),
+        actor_id: log.actor_id?.toString() || null,
+        target_id: log.target_id?.toString() || null,
+        actor: log.actor ? { ...log.actor, id: log.actor.id.toString() } : null,
+      })),
+      stats: {
+        total_trips: totalTrips,
+        completed_trips: completedTrips,
+        cancelled_trips: cancelledTrips,
+        total_requests: totalRequests,
+        completed_requests: completedRequests,
+        failed_requests: failedRequests,
+        incident_reports_count: incidentReportsCount,
+      },
+      cancellation,
+    };
+  }
+
+  /**
+   * AD-01 (Nâng cao): Quản trị viên chủ động khóa tài khoản người dùng / tài xế bất kỳ kèm lý do giải trình
+   */
+  static async lockUser(
+    adminId: bigint,
+    targetUserId: bigint,
+    rawInput: z.infer<typeof lockUserSchema> | any
+  ) {
+    const input = lockUserSchema.parse(rawInput);
+
+    if (adminId === targetUserId) {
+      throw new AppError(400, 'CANNOT_LOCK_SELF', 'Bạn không thể tự khóa tài khoản của chính mình.');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'Không tìm thấy tài khoản người dùng.');
+    }
+
+    if (user.role === user_role.ADMIN) {
+      throw new AppError(403, 'CANNOT_LOCK_ADMIN', 'Không thể khóa tài khoản Quản trị viên khác.');
+    }
+
+    const isPermanent = input.lock_type === 'LOCKED_PERM';
+    const nextStatus = isPermanent ? account_status.LOCKED_PERM : account_status.LOCKED_TEMP;
+    const lockedUntil = isPermanent
+      ? null
+      : new Date(Date.now() + input.duration_days * 24 * 60 * 60 * 1000);
+
+    const formattedUntil = lockedUntil
+      ? lockedUntil.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })
+      : null;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Cập nhật trạng thái khóa cho User
+      const updatedUser = await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          status: nextStatus,
+          locked_until: lockedUntil,
+        },
+      });
+
+      // 2. Ghi vết Audit Log bắt buộc
+      const auditLog = await tx.auditLog.create({
+        data: {
+          actor_id: adminId,
+          actor_type: 'ADMIN',
+          action: 'LOCK_ACCOUNT',
+          target_type: 'USER',
+          target_id: targetUserId,
+          reason: isPermanent
+            ? `[Khóa vĩnh viễn] ${input.reason}`
+            : `[Tạm khóa ${input.duration_days} ngày đến ${formattedUntil}] ${input.reason}`,
+        },
+      });
+
+      // 3. Gửi thông báo đến Người dùng / Tài xế kèm lý do khóa
+      const notifContent = isPermanent
+        ? `Tài khoản của bạn đã bị Quản trị viên khóa vĩnh viễn. Lý do: "${input.reason}"`
+        : `Tài khoản của bạn đã bị Quản trị viên tạm khóa ${input.duration_days} ngày (đến ${formattedUntil}). Lý do: "${input.reason}"`;
+
+      await tx.notification.create({
+        data: {
+          user_id: targetUserId,
+          type: 'ACCOUNT_LOCKED',
+          content: notifContent,
+          ref_type: 'USER',
+          ref_id: targetUserId,
+        },
+      });
+
+      return { updatedUser, auditLog };
+    });
+
+    return {
+      message: isPermanent
+        ? 'Đã khóa vĩnh viễn tài khoản thành công'
+        : `Đã tạm khóa tài khoản ${input.duration_days} ngày thành công`,
+      user: {
+        ...result.updatedUser,
+        id: result.updatedUser.id.toString(),
+      },
+      audit_log: {
+        ...result.auditLog,
+        id: result.auditLog.id.toString(),
+        actor_id: result.auditLog.actor_id?.toString() || null,
+        target_id: result.auditLog.target_id?.toString() || null,
+      },
+    };
+  }
+
+  /**
+   * AD-02: Lấy danh sách toàn bộ sự cố trong hệ thống (hỗ trợ lọc trạng thái, dải ngày và từ khóa)
    */
   static async getIncidents(rawQuery: z.infer<typeof listIncidentsQuerySchema> | any) {
     const query = listIncidentsQuerySchema.parse(rawQuery);
@@ -209,6 +492,27 @@ export class AdminService {
     const where: any = {};
     if (query.status) {
       where.status = query.status;
+    }
+
+    if (query.from_date || query.to_date) {
+      where.created_at = {};
+      if (query.from_date) {
+        where.created_at.gte = new Date(`${query.from_date}T00:00:00.000+07:00`);
+      }
+      if (query.to_date) {
+        where.created_at.lte = new Date(`${query.to_date}T23:59:59.999+07:00`);
+      }
+    }
+
+    if (query.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+        { reporter: { full_name: { contains: query.search, mode: 'insensitive' } } },
+        { reporter: { phone: { contains: query.search } } },
+        { trip: { code: { contains: query.search, mode: 'insensitive' } } },
+        { transport_request: { code: { contains: query.search, mode: 'insensitive' } } },
+      ];
     }
 
     const [total, incidents] = await Promise.all([
@@ -700,6 +1004,115 @@ export class AdminService {
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+    };
+  }
+
+  /**
+   * AD-02 / AD-03 (Nâng cao): Xem chi tiết toàn diện một chuyến xe (từ trang Quản lý sự cố hoặc Thống kê)
+   */
+  static async getTripDetail(tripId: bigint) {
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            avatar_url: true,
+            status: true,
+          },
+        },
+        vehicle: {
+          select: {
+            id: true,
+            type: true,
+            brand_model: true,
+            plate_number: true,
+            seat_count: true,
+            cargo_area_m2: true,
+            cargo_max_kg: true,
+            fuel_type: true,
+            fuel_consumption: true,
+            photo_url: true,
+          },
+        },
+        transport_requests: {
+          orderBy: { created_at: 'desc' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+                avatar_url: true,
+              },
+            },
+            package_items: true,
+          },
+        },
+        incident_reports: {
+          orderBy: { created_at: 'desc' },
+          include: {
+            reporter: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'TRIP_NOT_FOUND', 'Không tìm thấy thông tin chuyến xe.');
+    }
+
+    return {
+      ...trip,
+      id: trip.id.toString(),
+      driver_id: trip.driver_id.toString(),
+      vehicle_id: trip.vehicle_id.toString(),
+      driver: {
+        ...trip.driver,
+        id: trip.driver.id.toString(),
+      },
+      vehicle: {
+        ...trip.vehicle,
+        id: trip.vehicle.id.toString(),
+      },
+      transport_requests: trip.transport_requests.map((r) => ({
+        ...r,
+        id: r.id.toString(),
+        trip_id: r.trip_id.toString(),
+        user_id: r.user_id.toString(),
+        user: {
+          ...r.user,
+          id: r.user.id.toString(),
+        },
+        package_items: r.package_items.map((p) => ({
+          ...p,
+          id: p.id.toString(),
+          request_id: p.request_id.toString(),
+        })),
+      })),
+      incident_reports: trip.incident_reports.map((inc) => ({
+        ...inc,
+        id: inc.id.toString(),
+        reporter_id: inc.reporter_id.toString(),
+        handled_by: inc.handled_by?.toString() || null,
+        trip_id: inc.trip_id?.toString() || null,
+        request_id: inc.request_id?.toString() || null,
+        reporter: {
+          ...inc.reporter,
+          id: inc.reporter.id.toString(),
+        },
+      })),
     };
   }
 }

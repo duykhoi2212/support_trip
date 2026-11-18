@@ -123,10 +123,16 @@ export class AuthService {
 
     // 3. Kiểm tra trạng thái tài khoản
     if (user.status === account_status.LOCKED_PERM) {
+      const lastLockLog = await prisma.auditLog.findFirst({
+        where: { target_type: 'USER', target_id: user.id, action: 'LOCK_ACCOUNT' },
+        orderBy: { created_at: 'desc' },
+        select: { reason: true },
+      });
+      const reasonSuffix = lastLockLog?.reason ? ` Lý do: ${lastLockLog.reason}` : '';
       throw new AppError(
         403,
         'ACCOUNT_LOCKED_PERMANENT',
-        'Tài khoản của bạn đã bị khóa vĩnh viễn do vi phạm quy định của hệ thống.'
+        `Tài khoản của bạn đã bị khóa vĩnh viễn do vi phạm quy định của hệ thống.${reasonSuffix}`
       );
     }
 
@@ -136,10 +142,18 @@ export class AuthService {
         const formattedDate = user.locked_until.toLocaleString('vi-VN', {
           timeZone: 'Asia/Ho_Chi_Minh',
         });
+        const lastLockLog = await prisma.auditLog.findFirst({
+          where: { target_type: 'USER', target_id: user.id, action: 'LOCK_ACCOUNT' },
+          orderBy: { created_at: 'desc' },
+          select: { reason: true },
+        });
+        const reasonDetail = lastLockLog?.reason
+          ? `Lý do: ${lastLockLog.reason}`
+          : 'do vượt quá tỷ lệ hủy chuyến quy định.';
         throw new AppError(
           403,
           'ACCOUNT_LOCKED_TEMPORARY',
-          `Tài khoản của bạn đang bị khóa tạm thời đến ${formattedDate} do vượt quá tỷ lệ hủy chuyến.`
+          `Tài khoản của bạn đang bị khóa tạm thời đến ${formattedDate}. ${reasonDetail}`
         );
       } else {
         // Đã hết thời hạn khóa tạm, tự động khôi phục ACTIVE

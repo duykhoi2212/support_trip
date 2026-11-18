@@ -366,3 +366,135 @@ export interface AdminStatsOverview {
   };
 }
 
+export interface AdminUserDetail extends Omit<AdminUser, '_count'> {
+  vehicles: Array<{
+    id: string;
+    type: string;
+    brand_model?: string | null;
+    plate_number: string;
+    seat_count: number;
+    cargo_area_m2: number;
+    cargo_max_kg: number;
+    fuel_type: string;
+    fuel_consumption: number;
+    photo_url: string;
+    status: string;
+    is_deleted: boolean;
+    created_at: string;
+  }>;
+  audit_logs: Array<{
+    id: string;
+    actor_id?: string | null;
+    actor_type: string;
+    action: string;
+    target_type: string;
+    target_id?: string | null;
+    reason?: string | null;
+    created_at: string;
+    actor?: {
+      id: string;
+      full_name: string;
+      email: string;
+      role: UserRole;
+    } | null;
+  }>;
+  stats: {
+    total_trips: number;
+    completed_trips: number;
+    cancelled_trips: number;
+    total_requests: number;
+    completed_requests: number;
+    failed_requests: number;
+    incident_reports_count: number;
+  };
+  cancellation?: UserHistoryCancellationStats | null;
+}
+
+export interface AdminTripDetail extends Omit<Trip, 'driver' | 'vehicle' | 'transport_requests'> {
+  driver: {
+    id: string;
+    full_name: string;
+    phone: string;
+    email: string;
+    avatar_url?: string | null;
+    status: AccountStatus;
+  };
+  vehicle: {
+    id: string;
+    type: VehicleType;
+    brand_model?: string | null;
+    plate_number: string;
+    seat_count: number;
+    cargo_area_m2: number;
+    cargo_max_kg: number;
+    fuel_type: FuelType;
+    fuel_consumption: number;
+    photo_url: string;
+  };
+  transport_requests: Array<TransportRequest & {
+    user: {
+      id: string;
+      full_name: string;
+      phone: string;
+      email: string;
+      avatar_url?: string | null;
+    };
+  }>;
+  incident_reports: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: IncidentStatus;
+    created_at: string;
+    reporter: {
+      id: string;
+      full_name: string;
+      phone: string;
+      role: UserRole;
+    };
+  }>;
+}
+
+export interface MyIncidentItem {
+  id: string;
+  reporter_id: string;
+  trip_id?: string | null;
+  request_id?: string | null;
+  title: string;
+  description: string;
+  status: IncidentStatus;
+  handled_by?: string | null;
+  result_note?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  handler?: {
+    id: string;
+    full_name: string;
+  } | null;
+  trip?: {
+    id: string;
+    code: string;
+    origin_name: string;
+    dest_name: string;
+    departure_time: string;
+    status: TripStatus;
+  } | null;
+  transport_request?: {
+    id: string;
+    code: string;
+    type: RequestType;
+    status: RequestStatus;
+  } | null;
+}
+
+export interface MyIncidentsResponse {
+  incidents: MyIncidentItem[];
+  summary: {
+    total: number;
+    not_received: number;
+    received: number;
+    processing: number;
+    resolved: number;
+  };
+}
+

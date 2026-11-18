@@ -17,8 +17,8 @@ Trạng thái ký hiệu:
 | **Giai đoạn 3** | Quản lý Phương tiện + Tạo chuyến + Quản lý chuyến (DR-04, DR-01, DR-05) + Map ORS | 🟢 **Đã hoàn thành** | Ngày 3 |
 | **Giai đoạn 4** | Yêu cầu vận chuyển + Duyệt + Điều hành chuyến (US-01, US-03, DR-02, DR-03) + Thông báo | 🟢 **Đã hoàn thành** | Ngày 4 |
 | **Giai đoạn 5** | Các tác vụ hệ thống tự động (CS-01..03: đóng chuyến -6h, chốt hủy tuần, mở khóa) | 🟢 **Đã hoàn thành** | Ngày 5 |
-| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) | 🟢 **Đã hoàn thành** | Ngày 6 |
-| **Giai đoạn 7** | Docker, Nginx, tối ưu giao diện Stitch, tài liệu hướng dẫn deploy VPS | 🟡 **Kế tiếp (Chặng cuối)** | Ngày 7 |
+| **Giai đoạn 6** | Tìm kiếm AI Gemini (US-02) + Dự phòng CS-05 + Sự cố (CM-04) + Admin (AD-01..03) + Vận hành nâng cao | 🟢 **Đã hoàn thành** | Ngày 6 |
+| **Giai đoạn 7** | Đóng gói Docker, Nginx Reverse Proxy, Script Backup DB & Tài liệu triển khai VPS | 🟢 **Đã hoàn thành** | Ngày 7 |
 
 ---
 
@@ -68,6 +68,23 @@ Trạng thái ký hiệu:
 ---
 
 ## 3. LỊCH SỬ CẬP NHẬT VÀ TIẾN TRÌNH THỰC HIỆN
+- **2026-11-18 (HOÀN THÀNH TOÀN BỘ ROADMAP: CHẶNG 2 ADMIN CHUYÊN SÂU & GIAI ĐOẠN 7 DOCKER/VPS DEPLOYMENT)**:
+  - **Admin Quản lý Tài khoản Chuyên sâu (`AD-01`)**:
+    - Backend: Bổ sung `GET /api/admin/users/:id` (trả về hồ sơ đầy đủ, phương tiện, thống kê chuyến/yêu cầu, tỷ lệ hủy tuần hiện tại, danh sách vi phạm & lịch sử AuditLog) và `POST /api/admin/users/:id/lock` (khóa tạm có số ngày tùy chỉnh hoặc khóa vĩnh viễn kèm lý do giải trình $\ge 10$ ký tự, chặn tự khóa hoặc khóa Admin khác, ghi `AuditLog`, gửi `Notification` tới người bị khóa).
+    - Nâng cấp `auth-account`: Khi tài khoản bị Admin khóa thử đăng nhập sẽ hiển thị chính xác lý do khóa từ bản ghi kiểm toán gần nhất.
+    - Frontend (`UserManagement.tsx`): Bổ sung nút & Modal **"Xem chi tiết thông tin tài khoản"**, nút & Modal **"Khóa tài khoản"** (chọn hình thức khóa, chọn nhanh số ngày 3/7/14/30, nhập lý do bắt buộc) song song với nút **"Mở khóa"**.
+  - **Admin Quản lý Sự cố Nâng cao (`AD-02`)**:
+    - Backend: Mở rộng `GET /api/admin/incidents` hỗ trợ lọc theo dải ngày (`from_date`, `to_date`) và tìm kiếm từ khóa (`search` theo tiêu đề, mô tả, tên/SĐT người gửi, mã chuyến/yêu cầu). Bổ sung `GET /api/admin/trips/:id` xem chi tiết toàn diện chuyến xe cho Admin.
+    - Frontend (`IncidentManagement.tsx`): Bổ sung bộ lọc dải ngày + 4 nút chọn nhanh ("Hôm nay", "7 ngày qua", "30 ngày qua", "Xóa lọc") + ô tìm kiếm từ khóa, và nút **"Xem chi tiết chuyến xe"** mở Modal hiển thị đầy đủ lộ trình, tài xế, xe, danh sách hành khách/hàng hóa trên chuyến.
+  - **Theo dõi Tiến trình Báo cáo Sự cố phía Người dùng & Tài xế (`CM-04`)**:
+    - Backend: Bổ sung `GET /api/incidents/my` trả về toàn bộ sự cố do User/Driver gửi kèm tổng hợp trạng thái, thông tin chuyến xe, tên Admin phụ trách và ghi chú kết quả xử lý.
+    - Frontend: Xây dựng trang mới `/my-incidents` (`MyIncidents.tsx`) với 4 thẻ KPI, bộ lọc trạng thái & ngày, thanh tiến trình 4 bước trực quan (`Chưa tiếp nhận` ➔ `Đã tiếp nhận` ➔ `Đang xử lý` ➔ `Đã giải quyết`), hiển thị phản hồi của Admin và modal gửi sự cố mới. Gắn điều hướng trên Navbar, Profile Dropdown và tự động điều hướng khi nhấp thông báo `INCIDENT_UPDATE`.
+  - **Giai đoạn 7 — Đóng gói Docker, Nginx Reverse Proxy & Hướng dẫn VPS**:
+    - Xây dựng multi-stage `backend/Dockerfile`, `frontend/Dockerfile`, `.dockerignore`, `nginx/nginx.conf` (SPA fallback, gzip, cache, reverse proxy `/api` & `/uploads`), `docker-compose.yml` (PostgreSQL 16 + Backend + Frontend/Nginx + Volumes + Healthchecks), `.env.docker.example`.
+    - Tạo script sao lưu tự động `scripts/backup-db.sh` (nén `.sql.gz`, giữ 7 ngày) và tài liệu chi tiết `docs/DEPLOY_VPS.md` (Docker, Nginx, SSL Certbot Let's Encrypt, Cron Backup).
+  - **Kiểm thử & Chất lượng**:
+    - Mở rộng `backend/tests/admin-dashboard.test.ts` (15 tests). Toàn bộ **83/83 Vitest tests (7/7 test suites) passed 100%** trên CSDL Neon Cloud.
+    - Frontend (`tsc && vite build`) và Backend (`tsc`) biên dịch sạch **0 lỗi**.
 - **2026-11-17 (Chặng 1: Chỉ Số Tỷ Lệ Hủy CS-02, Truy Vết Yêu Cầu FAILED Khách Vắng Mặt & Bộ Lọc Ngày Linh Hoạt)**:
   - **Khắc phục luồng Báo sự cố vắng mặt phía Khách hàng**:
     - Backend: Mở rộng `RequestService.getUserHistory` truy vấn cả trạng thái `request_status.FAILED` (trước đây chỉ lọc `[COMPLETED, CANCELLED, REJECTED]`, khiến hành khách bị tài xế báo vắng mặt biến mất khỏi lịch sử).
