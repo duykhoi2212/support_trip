@@ -501,22 +501,31 @@ export interface AdminDashboardData {
   }>;
 }
 
+export interface AdminUserVehicle {
+  id: string;
+  type: VehicleType;
+  brand_model?: string | null;
+  color?: string | null;
+  plate_number: string;
+  seat_count: number;
+  cargo_area_m2: number;
+  cargo_max_kg: number;
+  fuel_type: FuelType;
+  fuel_consumption: number;
+  fuel_photo_url?: string | null;
+  inspection_photo_url?: string | null;
+  inspection_expiry_date?: string | null;
+  photo_url: string;
+  status: string;
+  is_deleted: boolean;
+  created_at: string;
+  _count?: {
+    trips: number;
+  };
+}
+
 export interface AdminUserDetail extends Omit<AdminUser, '_count'> {
-  vehicles: Array<{
-    id: string;
-    type: string;
-    brand_model?: string | null;
-    plate_number: string;
-    seat_count: number;
-    cargo_area_m2: number;
-    cargo_max_kg: number;
-    fuel_type: string;
-    fuel_consumption: number;
-    photo_url: string;
-    status: string;
-    is_deleted: boolean;
-    created_at: string;
-  }>;
+  vehicles: AdminUserVehicle[];
   audit_logs: Array<{
     id: string;
     actor_id?: string | null;

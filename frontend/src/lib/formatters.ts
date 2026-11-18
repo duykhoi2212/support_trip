@@ -91,6 +91,19 @@ export function getIncidentStatusLabel(status?: IncidentStatus | string | null):
   }
 }
 
+export function getVehicleTypeLabel(type?: string | null): string {
+  switch (type) {
+    case 'CAR':
+      return 'Ô tô';
+    case 'VAN':
+      return 'Xe Van';
+    case 'TRUCK':
+      return 'Xe tải';
+    default:
+      return type || 'Phương tiện';
+  }
+}
+
 export function getFuelTypeLabel(fuelType?: FuelType | string | null): string {
   switch (fuelType) {
     case 'GASOLINE':

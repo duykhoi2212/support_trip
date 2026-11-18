@@ -18,9 +18,10 @@ import {
   History,
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
-import { AdminUser, AdminUserDetail, UserRole, AccountStatus } from '../../types';
+import { AdminUser, AdminUserDetail, AdminUserVehicle, UserRole, AccountStatus } from '../../types';
 import { AccountStatusBadge, RoleBadge } from '../../components/common/StatusBadge';
-import { getFuelTypeLabel, getLockTypeLabel, getRoleLabel } from '../../lib/formatters';
+import { AdminVehicleDetailModal } from '../../components/admin/AdminVehicleDetailModal';
+import { getFuelTypeLabel, getLockTypeLabel, getRoleLabel, getVehicleTypeLabel } from '../../lib/formatters';
 
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -55,6 +56,7 @@ export const UserManagement: React.FC = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<AdminUserVehicle | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -814,22 +816,36 @@ export const UserManagement: React.FC = () => {
                   {/* 3. Danh sách phương tiện (Nếu là Tài xế) */}
                   {detailUser.role === 'DRIVER' && (
                     <div className="space-y-2.5">
-                      <h5 className="text-sm font-bold text-slate-800 flex items-center">
-                        <Car className="w-4 h-4 mr-1.5 text-blue-600" />
-                        Phương tiện đăng ký ({detailUser.vehicles.length})
-                      </h5>
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-sm font-bold text-slate-800 flex items-center">
+                          <Car className="w-4 h-4 mr-1.5 text-emerald-600" />
+                          Phương tiện đăng ký ({detailUser.vehicles.length})
+                        </h5>
+                        {detailUser.vehicles.length > 0 && (
+                          <span className="text-[11px] text-slate-400">
+                            Nhấn vào phương tiện để xem hồ sơ chi tiết
+                          </span>
+                        )}
+                      </div>
                       {detailUser.vehicles.length === 0 ? (
                         <p className="text-xs text-slate-400 italic">Tài xế chưa đăng ký phương tiện nào.</p>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {detailUser.vehicles.map((v) => (
-                            <div
+                            <button
                               key={v.id}
-                              className="p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 text-xs"
+                              type="button"
+                              onClick={() => setSelectedVehicle(v)}
+                              className="w-full text-left p-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/30 hover:shadow-sm transition-all flex items-center gap-3 text-xs group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              title="Nhấn để xem đầy đủ hồ sơ phương tiện"
                             >
-                              <div className="w-14 h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                              <div className="w-14 h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200/70">
                                 {v.photo_url ? (
-                                  <img src={v.photo_url} alt={v.plate_number} className="w-full h-full object-cover" />
+                                  <img
+                                    src={v.photo_url}
+                                    alt={v.plate_number}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-slate-400">
                                     <Car className="w-5 h-5" />
@@ -837,20 +853,28 @@ export const UserManagement: React.FC = () => {
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                  <span>{v.plate_number}</span>
-                                  {v.is_deleted && (
-                                    <span className="px-1.5 py-0.5 text-[10px] bg-slate-200 text-slate-600 rounded">Đã xóa</span>
-                                  )}
+                                <div className="font-bold text-slate-900 flex items-center justify-between gap-1.5">
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <span>{v.plate_number}</span>
+                                    {v.is_deleted && (
+                                      <span className="px-1.5 py-0.5 text-[10px] bg-slate-200 text-slate-600 rounded">
+                                        Đã xóa
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-emerald-600 opacity-80 group-hover:opacity-100 flex-shrink-0">
+                                    Chi tiết ➔
+                                  </span>
                                 </div>
                                 <div className="text-slate-600 truncate">
-                                  {v.brand_model || v.type} • {v.seat_count} chỗ • Cốp {v.cargo_area_m2}m²/{v.cargo_max_kg}kg
+                                  {v.brand_model || getVehicleTypeLabel(v.type)} • {v.seat_count} chỗ • Cốp{' '}
+                                  {v.cargo_area_m2}m²/{v.cargo_max_kg}kg
                                 </div>
                                 <div className="text-[11px] text-slate-400">
                                   Nhiên liệu: {getFuelTypeLabel(v.fuel_type)} ({v.fuel_consumption}/100km)
                                 </div>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -998,6 +1022,15 @@ export const UserManagement: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal Xem Chi Tiết Đầy Đủ Phương Tiện của Tài xế */}
+      {selectedVehicle && detailUser && (
+        <AdminVehicleDetailModal
+          vehicle={selectedVehicle}
+          driverName={detailUser.full_name}
+          onClose={() => setSelectedVehicle(null)}
+        />
       )}
     </div>
   );

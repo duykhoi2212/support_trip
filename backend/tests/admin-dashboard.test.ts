@@ -302,12 +302,21 @@ describe('Kiểm thử Chặng 3: Hệ thống Quản trị viên (Admin Dashboa
   });
 
   describe('4. AD-Deep & Incident Tracking: Khóa tài khoản, Xem chi tiết, Lọc ngày sự cố & Người dùng theo dõi sự cố', () => {
-    it('Admin xem chi tiết thông tin tài khoản (Hồ sơ, thống kê, tỷ lệ hủy tuần, audit logs)', async () => {
+    it('Admin xem chi tiết thông tin tài khoản (Hồ sơ, thống kê, tỷ lệ hủy tuần, audit logs & chi tiết phương tiện)', async () => {
       const detail = await AdminService.getUserDetail(lockedUserId);
       expect(detail.id).toBe(lockedUserId.toString());
       expect(detail.stats).toBeDefined();
       expect(detail.cancellation).toBeDefined();
       expect(detail.audit_logs.length).toBeGreaterThanOrEqual(1);
+
+      const driverDetail = await AdminService.getUserDetail(testDriverId);
+      expect(driverDetail.vehicles.length).toBeGreaterThanOrEqual(1);
+      const v = driverDetail.vehicles[0];
+      expect(v).toHaveProperty('color');
+      expect(v).toHaveProperty('inspection_expiry_date');
+      expect(v).toHaveProperty('inspection_photo_url');
+      expect(v).toHaveProperty('fuel_photo_url');
+      expect(v._count.trips).toBeGreaterThanOrEqual(1);
     });
 
     it('Admin khóa tài khoản thủ công (LOCKED_TEMP) kèm lý do, tạo AuditLog và gửi thông báo cho User', async () => {
